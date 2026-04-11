@@ -13,11 +13,48 @@
     <name>Mini Quarkus</name>
     <description>A minimal Quarkus implementation for understanding purposes</description>
 
+    <properties>
+        <skipTests>false</skipTests>
+        <skipITs>false</skipITs>
+        <invoker.skip>false</invoker.skip>
+        <no-format>false</no-format>
+        <no-native>false</no-native>
+        <maven.javadoc.skip>false</maven.javadoc.skip>
+        <maven.source.skip>false</maven.source.skip>
+        <checkstyle.skip>false</checkstyle.skip>
+    </properties>
+
     <modules>
         <module>build-parent</module>
         <module>bom/application</module>
         <module>bom/test</module>
         <module>bom/dev-ui</module>
+        <module>extensions</module>
+        <module>integration-tests</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>quick-build</id>
+            <activation>
+                <property>
+                    <name>quickly</name>
+                </property>
+            </activation>
+            <build>
+                <defaultGoal>clean install</defaultGoal>
+            </build>
+            <properties>
+                <skipTests>true</skipTests>
+                <skipITs>true</skipITs>
+                <invoker.skip>true</invoker.skip>
+                <no-format>true</no-format>
+                <no-native>true</no-native>
+                <maven.javadoc.skip>true</maven.javadoc.skip>
+                <maven.source.skip>true</maven.source.skip>
+                <checkstyle.skip>true</checkstyle.skip>
+            </properties>
+        </profile>
+    </profiles>
 
 </project>

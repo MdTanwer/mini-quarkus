@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.tanwir</groupId>
+        <artifactId>mini-quarkus-integration-tests-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>mini-quarkus-main</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Mini Quarkus Main App</name>
+    <description>Placeholder app module for future com.tanwir runtime work</description>
+
+    <properties>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!--
+        Add com.tanwir runtime modules here when they exist, for example:
+
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-rest</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        -->
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+            Add a com.tanwir build plugin here when you implement one.
+            -->
+        </plugins>
+    </build>
+</project>

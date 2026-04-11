@@ -16,7 +16,7 @@
     <packaging>pom</packaging>
 
     <name>Mini Quarkus Build Parent</name>
-    <description>Build parent that imports quarkus-bom</description>
+    <description>Build parent that imports the custom application BOM</description>
 
     <dependencyManagement>
         <dependencies>

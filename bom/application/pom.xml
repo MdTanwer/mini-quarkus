@@ -16,29 +16,19 @@
     <packaging>pom</packaging>
 
     <name>Mini Quarkus Application BOM</name>
-    <description>Quarkus BOM with 500+ dependencies</description>
-
-    <properties>
-        <quarkus.version>3.20.0</quarkus.version>
-    </properties>
+    <description>Application BOM for custom com.tanwir modules</description>
 
     <dependencyManagement>
         <dependencies>
+            <!--
+            Add managed com.tanwir framework modules here as you implement them, for example:
+
             <dependency>
-                <groupId>io.quarkus</groupId>
-                <artifactId>quarkus-core</artifactId>
-                <version>${quarkus.version}</version>
+                <groupId>com.tanwir</groupId>
+                <artifactId>mini-quarkus-core</artifactId>
+                <version>${project.version}</version>
             </dependency>
-            <dependency>
-                <groupId>io.quarkus</groupId>
-                <artifactId>quarkus-arc</artifactId>
-                <version>${quarkus.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.quarkus</groupId>
-                <artifactId>quarkus-vertx-http</artifactId>
-                <version>${quarkus.version}</version>
-            </dependency>
+            -->
         </dependencies>
     </dependencyManagement>
 

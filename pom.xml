@@ -31,6 +31,7 @@
         <module>bom/dev-ui</module>
         <module>extensions</module>
         <module>integration-tests</module>
+        <module>independent-projects/arc</module>
     </modules>
 
     <profiles>

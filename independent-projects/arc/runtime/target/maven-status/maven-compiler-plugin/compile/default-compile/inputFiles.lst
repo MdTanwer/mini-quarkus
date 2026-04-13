@@ -1,5 +1,9 @@
-/home/ubuntu/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Arc.java
-/home/ubuntu/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/ArcContainer.java
-/home/ubuntu/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/InstanceHandle.java
-/home/ubuntu/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/SimpleArcContainer.java
-/home/ubuntu/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Singleton.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Arc.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/ArcContainer.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/BeanFactory.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/BeanRegistrar.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/GeneratedBeanRegistrar.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Inject.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/InstanceHandle.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/SimpleArcContainer.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Singleton.java

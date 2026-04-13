@@ -1,1 +1,7 @@
+META-INF/services/com.tanwir.resteasy.reactive.server.GeneratedRouteRegistrar
+com/tanwir/resteasy/reactive/generated/GeneratedRouteRegistrar_678ed0b.class
+META-INF/mini-quarkus/application-model.properties
 com/tanwir/it/MainResource.class
+com/tanwir/it/GreetingService.class
+com/tanwir/arc/generated/ArcBeanRegistrar_a12c4461.class
+META-INF/services/com.tanwir.arc.GeneratedBeanRegistrar

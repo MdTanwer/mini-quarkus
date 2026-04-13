@@ -1,2 +1,2 @@
-/home/ubuntu/mini-quarkus/independent-projects/arc/runtime/src/test/java/com/tanwir/arc/ArcSingletonTest.java
-/home/ubuntu/mini-quarkus/independent-projects/arc/runtime/src/test/java/com/tanwir/arc/TestSingletonBean.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/test/java/com/tanwir/arc/ArcSingletonTest.java
+/home/ubuntu/quarkus/mini-quarkus/independent-projects/arc/runtime/src/test/java/com/tanwir/arc/TestSingletonBean.java

@@ -1,6 +1,10 @@
 com/tanwir/arc/Arc.class
-com/tanwir/arc/SimpleArcContainer.class
 com/tanwir/arc/SimpleArcContainer$SimpleInstanceHandle.class
 com/tanwir/arc/Singleton.class
 com/tanwir/arc/InstanceHandle.class
 com/tanwir/arc/ArcContainer.class
+com/tanwir/arc/BeanFactory.class
+com/tanwir/arc/Inject.class
+com/tanwir/arc/GeneratedBeanRegistrar.class
+com/tanwir/arc/BeanRegistrar.class
+com/tanwir/arc/SimpleArcContainer.class

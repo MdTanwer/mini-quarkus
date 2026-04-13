@@ -20,15 +20,21 @@
 
     <dependencyManagement>
         <dependencies>
-            <!--
-            Add managed com.tanwir framework modules here as you implement them, for example:
-
             <dependency>
                 <groupId>com.tanwir</groupId>
-                <artifactId>mini-quarkus-core</artifactId>
+                <artifactId>mini-quarkus-arc-runtime</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            -->
+            <dependency>
+                <groupId>com.tanwir</groupId>
+                <artifactId>mini-quarkus-resteasy-reactive-runtime</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.tanwir</groupId>
+                <artifactId>mini-quarkus-bootstrap-runner</artifactId>
+                <version>${project.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

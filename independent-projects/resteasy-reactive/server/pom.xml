@@ -7,19 +7,19 @@
 
     <parent>
         <groupId>com.tanwir</groupId>
-        <artifactId>mini-quarkus-build-parent</artifactId>
+        <artifactId>mini-quarkus-resteasy-reactive-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
-        <relativePath>../build-parent/pom.xml</relativePath>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>mini-quarkus-extensions-parent</artifactId>
+    <artifactId>mini-quarkus-resteasy-reactive-server-parent</artifactId>
     <packaging>pom</packaging>
 
-    <name>Mini Quarkus Extensions Parent</name>
-    <description>Parent reactor for extension modules</description>
+    <name>Mini Quarkus RESTEasy Reactive Server Parent</name>
+    <description>Parent reactor for the minimal server-side REST stack</description>
 
     <modules>
-        <module>arc</module>
-        <module>resteasy-reactive</module>
+        <module>runtime</module>
+        <module>processor</module>
     </modules>
 </project>

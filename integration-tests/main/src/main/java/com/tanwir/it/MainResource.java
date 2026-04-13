@@ -1,11 +1,24 @@
 package com.tanwir.it;
 
+import com.tanwir.arc.Inject;
+import com.tanwir.arc.Singleton;
+
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+
+@Singleton
+@Path("/hello")
 public final class MainResource {
 
-    private MainResource() {
+    private final GreetingService greetingService;
+
+    @Inject
+    public MainResource(GreetingService greetingService) {
+        this.greetingService = greetingService;
     }
 
-    public static String status() {
-        return "mini-quarkus-main placeholder";
+    @GET
+    public String hello() {
+        return greetingService.message();
     }
 }

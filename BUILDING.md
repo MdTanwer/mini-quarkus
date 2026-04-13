@@ -96,3 +96,42 @@ Use this repo in three stages:
 1. Build the current reactor with `mvnd clean install`
 2. Iterate quickly with `mvnd clean install -Dquickly`
 3. Add real `com.tanwir` modules and plugin wiring before introducing custom dev mode or native builds
+
+## Current End-To-End Slice
+
+The repo now has one complete framework slice:
+
+- ArC-style singleton discovery and generated bean wiring
+- bootstrap application model generation and runner startup
+- RESTEasy Reactive-style generated `GET` routes
+- Vert.x HTTP runtime with request lifecycle logging
+
+The runnable sample app lives in `integration-tests/main`.
+
+## Package And Run Like A User
+
+Build the runnable sample jar:
+
+```bash
+./mvnw package -pl integration-tests/main -am
+```
+
+Run it:
+
+```bash
+java -jar integration-tests/main/target/mini-quarkus-main.jar
+```
+
+Call the endpoint:
+
+```bash
+curl http://localhost:8080/hello
+```
+
+If you want an ephemeral port instead of `8080`:
+
+```bash
+java -Dmini.quarkus.http.port=0 -jar integration-tests/main/target/mini-quarkus-main.jar
+```
+
+The application prints the actual bound port on startup.

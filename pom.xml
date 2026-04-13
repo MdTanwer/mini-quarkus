@@ -32,6 +32,7 @@
         <module>independent-projects/arc</module>
         <module>independent-projects/bootstrap</module>
         <module>independent-projects/resteasy-reactive</module>
+        <module>independent-projects/maven-plugin</module>
         <module>extensions</module>
         <module>integration-tests</module>
     </modules>

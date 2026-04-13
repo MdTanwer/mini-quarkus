@@ -2,6 +2,7 @@ package com.tanwir.resteasy.reactive.server;
 
 import com.tanwir.arc.Arc;
 import com.tanwir.arc.ArcContainer;
+import com.tanwir.arc.context.RequestContextController;
 import com.tanwir.bootstrap.model.MiniApplicationModel;
 
 import java.util.ServiceLoader;
@@ -103,6 +104,9 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
                 String requestPath = routingContext.request().path();
                 LOG.infof("GET %s received", requestPath);
                 LOG.infof("matched route -> %s", operationId);
+                
+                RequestContextController rcc = arcContainer.requestContextController();
+                rcc.activate();
                 try {
                     T resource = arcContainer.instance(resourceClass).get();
                     LOG.infof("resolved bean -> %s", resourceClass.getName());
@@ -119,6 +123,8 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
                             .setStatusCode(500)
                             .putHeader("content-type", "text/plain")
                             .end("Internal Server Error");
+                } finally {
+                    rcc.deactivate();  // triggers @PreDestroy on all @RequestScoped beans
                 }
             });
         }

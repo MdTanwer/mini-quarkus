@@ -1,6 +1,12 @@
 package com.tanwir.arc.processor;
 
+import com.tanwir.arc.ApplicationScoped;
+import com.tanwir.arc.Dependent;
 import com.tanwir.arc.Inject;
+import com.tanwir.arc.PostConstruct;
+import com.tanwir.arc.PreDestroy;
+import com.tanwir.arc.RequestScoped;
+import com.tanwir.arc.Scope;
 import com.tanwir.arc.Singleton;
 
 import java.io.IOException;
@@ -25,13 +31,20 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import javax.tools.Diagnostic;
 import javax.tools.FileObject;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
 
-@SupportedAnnotationTypes("com.tanwir.arc.Singleton")
+@SupportedAnnotationTypes({
+    "com.tanwir.arc.Singleton",
+    "com.tanwir.arc.ApplicationScoped",
+    "com.tanwir.arc.RequestScoped",
+    "com.tanwir.arc.Dependent"
+})
 @SupportedSourceVersion(SourceVersion.RELEASE_17)
 public final class ArcBeanProcessor extends AbstractProcessor {
 
@@ -48,16 +61,18 @@ public final class ArcBeanProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        // Process all scope annotations
         for (Element element : roundEnv.getElementsAnnotatedWith(Singleton.class)) {
-            if (element.getKind() != ElementKind.CLASS) {
-                error(element, "@Singleton can only be used on classes");
-                continue;
-            }
-            TypeElement beanType = (TypeElement) element;
-            BeanDefinition bean = BeanDefinition.create(beanType, processingEnv);
-            if (bean != null) {
-                beans.put(bean.qualifiedName, bean);
-            }
+            processScopeElement(element, Scope.SINGLETON);
+        }
+        for (Element element : roundEnv.getElementsAnnotatedWith(ApplicationScoped.class)) {
+            processScopeElement(element, Scope.APPLICATION);
+        }
+        for (Element element : roundEnv.getElementsAnnotatedWith(RequestScoped.class)) {
+            processScopeElement(element, Scope.REQUEST);
+        }
+        for (Element element : roundEnv.getElementsAnnotatedWith(Dependent.class)) {
+            processScopeElement(element, Scope.DEPENDENT);
         }
 
         if (!roundEnv.processingOver() || generated || beans.isEmpty()) {
@@ -69,9 +84,50 @@ public final class ArcBeanProcessor extends AbstractProcessor {
         return false;
     }
 
+    private void processScopeElement(Element element, Scope scope) {
+        if (element.getKind() != ElementKind.CLASS) {
+            error(element, "@" + getScopeAnnotationName(scope) + " can only be used on classes");
+            return;
+        }
+        TypeElement beanType = (TypeElement) element;
+        
+        // Validate only one scope annotation per class
+        validateSingleScope(beanType, scope);
+        
+        BeanDefinition bean = BeanDefinition.create(beanType, scope, processingEnv);
+        if (bean != null) {
+            beans.put(bean.qualifiedName, bean);
+        }
+    }
+
+    private void validateSingleScope(TypeElement beanType, Scope currentScope) {
+        int scopeCount = 0;
+        if (beanType.getAnnotation(Singleton.class) != null) scopeCount++;
+        if (beanType.getAnnotation(ApplicationScoped.class) != null) scopeCount++;
+        if (beanType.getAnnotation(RequestScoped.class) != null) scopeCount++;
+        if (beanType.getAnnotation(Dependent.class) != null) scopeCount++;
+        
+        if (scopeCount > 1) {
+            error(beanType, "Only one scope annotation is allowed per class. Found multiple scope annotations.");
+        }
+    }
+
+    private String getScopeAnnotationName(Scope scope) {
+        return switch (scope) {
+            case SINGLETON -> "Singleton";
+            case APPLICATION -> "ApplicationScoped";
+            case REQUEST -> "RequestScoped";
+            case DEPENDENT -> "Dependent";
+        };
+    }
+
     private void generateSources() {
         String registrarSimpleName = "ArcBeanRegistrar_" + Integer.toHexString(beans.keySet().toString().hashCode());
         String registrarQualifiedName = GENERATED_PACKAGE + "." + registrarSimpleName;
+        
+        // Generate proxies for @ApplicationScoped beans
+        generateProxies();
+        
         generateRegistrarSource(registrarSimpleName);
         generateServiceDescriptor(registrarQualifiedName);
     }
@@ -82,18 +138,47 @@ public final class ArcBeanProcessor extends AbstractProcessor {
             JavaFileObject file = filer.createSourceFile(GENERATED_PACKAGE + "." + registrarSimpleName);
             try (Writer writer = file.openWriter()) {
                 writer.write("package " + GENERATED_PACKAGE + ";\n\n");
+                writer.write("import com.tanwir.arc.BeanDescriptor;\n");
+                writer.write("import com.tanwir.arc.Scope;\n");
+                writer.write("import java.util.Set;\n\n");
                 writer.write("public final class " + registrarSimpleName
                         + " implements com.tanwir.arc.GeneratedBeanRegistrar {\n");
                 writer.write("    @Override\n");
                 writer.write("    public void register(com.tanwir.arc.BeanRegistrar beanRegistrar) {\n");
                 for (BeanDefinition bean : beans.values()) {
-                    writer.write("        beanRegistrar.register(" + bean.qualifiedName + ".class, container -> ");
-                    writer.write("new " + bean.qualifiedName + "(");
-                    for (int i = 0; i < bean.constructorParameters.size(); i++) {
-                        if (i > 0) {
-                            writer.write(", ");
+                    // For @ApplicationScoped beans, register the proxy class
+                    String beanClassName = bean.scope == Scope.APPLICATION ? 
+                        (bean.qualifiedName.substring(0, bean.qualifiedName.lastIndexOf('.')) + "." + 
+                         bean.qualifiedName.substring(bean.qualifiedName.lastIndexOf('.') + 1) + "_Proxy") :
+                        bean.qualifiedName;
+                    
+                    writer.write("        beanRegistrar.register(new BeanDescriptor<>(\n");
+                    writer.write("            " + bean.qualifiedName + ".class,\n"); // Always use original bean class as type
+                    writer.write("            Scope." + bean.scope.name() + ",\n");
+                    writer.write("            container -> ");
+                    writer.write("new " + beanClassName + "(");
+                    if (bean.scope == Scope.APPLICATION) {
+                        writer.write("container"); // Proxy needs container reference
+                    } else {
+                        for (int i = 0; i < bean.constructorParameters.size(); i++) {
+                            if (i > 0) {
+                                writer.write(", ");
+                            }
+                            writer.write("container.instance(" + bean.constructorParameters.get(i) + ".class).get()");
                         }
-                        writer.write("container.instance(" + bean.constructorParameters.get(i) + ".class).get()");
+                    }
+                    writer.write("),\n");
+                    writer.write("            " + (bean.postConstructMethod != null ? "\"" + bean.postConstructMethod + "\"" : "null") + ",\n");
+                    writer.write("            " + (bean.preDestroyMethod != null ? "\"" + bean.preDestroyMethod + "\"" : "null") + ",\n");
+                    writer.write("            Set.of(");
+                    if (bean.qualifiers.isEmpty()) {
+                        writer.write(")");
+                    } else {
+                        for (int i = 0; i < bean.qualifiers.size(); i++) {
+                            if (i > 0) writer.write(", ");
+                            writer.write(bean.qualifiers.get(i) + ".class");
+                        }
+                        writer.write(")");
                     }
                     writer.write("));\n");
                 }
@@ -102,6 +187,84 @@ public final class ArcBeanProcessor extends AbstractProcessor {
             }
         } catch (IOException e) {
             throw new IllegalStateException("Unable to generate ArC bean registrar", e);
+        }
+    }
+
+    private void generateProxies() {
+        for (BeanDefinition bean : beans.values()) {
+            if (bean.scope == Scope.APPLICATION) {
+                generateProxy(bean);
+            }
+        }
+    }
+
+    private void generateProxy(BeanDefinition bean) {
+        Filer filer = processingEnv.getFiler();
+        String proxySimpleName = bean.qualifiedName.substring(bean.qualifiedName.lastIndexOf('.') + 1) + "_Proxy";
+        String proxyPackage = bean.qualifiedName.substring(0, bean.qualifiedName.lastIndexOf('.'));
+        String proxyQualifiedName = proxyPackage + "." + proxySimpleName;
+        
+        try {
+            JavaFileObject file = filer.createSourceFile(proxyQualifiedName);
+            try (Writer writer = file.openWriter()) {
+                writer.write("package " + proxyPackage + ";\n\n");
+                writer.write("import com.tanwir.arc.ArcContainer;\n\n");
+                writer.write("// Generated proxy for: @" + bean.scope.name().toLowerCase() + " " + bean.qualifiedName + "\n");
+                writer.write("public final class " + proxySimpleName + " extends " + bean.qualifiedName + " {\n");
+                writer.write("    private final ArcContainer container;\n\n");
+                writer.write("    public " + proxySimpleName + "(ArcContainer container) {\n");
+                writer.write("        this.container = container;\n");
+                writer.write("    }\n\n");
+                
+                // Get the bean type element to find methods to override
+                TypeElement beanType = processingEnv.getElementUtils().getTypeElement(bean.qualifiedName);
+                List<ExecutableElement> methods = ElementFilter.methodsIn(beanType.getEnclosedElements());
+                
+                for (ExecutableElement method : methods) {
+                    // Only override public, non-final, non-static methods
+                    if (method.getModifiers().contains(Modifier.PUBLIC) &&
+                        !method.getModifiers().contains(Modifier.FINAL) &&
+                        !method.getModifiers().contains(Modifier.STATIC)) {
+                        
+                        writer.write("    @Override\n");
+                        writer.write("    public " + method.getReturnType() + " " + method.getSimpleName() + "(");
+                        
+                        // Parameters
+                        List<? extends VariableElement> parameters = method.getParameters();
+                        for (int i = 0; i < parameters.size(); i++) {
+                            if (i > 0) writer.write(", ");
+                            writer.write(parameters.get(i).asType() + " " + parameters.get(i).getSimpleName());
+                        }
+                        writer.write(")");
+                        
+                        // Throws clause
+                        List<? extends TypeMirror> thrownTypes = method.getThrownTypes();
+                        if (!thrownTypes.isEmpty()) {
+                            writer.write(" throws ");
+                            for (int i = 0; i < thrownTypes.size(); i++) {
+                                if (i > 0) writer.write(", ");
+                                writer.write(thrownTypes.get(i).toString());
+                            }
+                        }
+                        
+                        writer.write(" {\n");
+                        writer.write("        return container.instance(" + bean.qualifiedName + ".class).get()." + 
+                                   method.getSimpleName() + "(");
+                        
+                        // Forward parameters
+                        for (int i = 0; i < parameters.size(); i++) {
+                            if (i > 0) writer.write(", ");
+                            writer.write(parameters.get(i).getSimpleName().toString());
+                        }
+                        writer.write(");\n");
+                        writer.write("    }\n\n");
+                    }
+                }
+                
+                writer.write("}\n");
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to generate proxy for " + bean.qualifiedName, e);
         }
     }
 
@@ -125,22 +288,31 @@ public final class ArcBeanProcessor extends AbstractProcessor {
     private static final class BeanDefinition {
 
         private final String qualifiedName;
+        private final Scope scope;
         private final List<String> constructorParameters;
+        private final String postConstructMethod;
+        private final String preDestroyMethod;
+        private final List<String> qualifiers;
 
-        private BeanDefinition(String qualifiedName, List<String> constructorParameters) {
+        private BeanDefinition(String qualifiedName, Scope scope, List<String> constructorParameters,
+                            String postConstructMethod, String preDestroyMethod, List<String> qualifiers) {
             this.qualifiedName = qualifiedName;
+            this.scope = scope;
             this.constructorParameters = constructorParameters;
+            this.postConstructMethod = postConstructMethod;
+            this.preDestroyMethod = preDestroyMethod;
+            this.qualifiers = qualifiers;
         }
 
-        private static BeanDefinition create(TypeElement beanType, ProcessingEnvironment processingEnv) {
+        private static BeanDefinition create(TypeElement beanType, Scope scope, ProcessingEnvironment processingEnv) {
             if (!beanType.getModifiers().contains(Modifier.PUBLIC)) {
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                        "@Singleton beans must be public in the first ArC prototype", beanType);
+                        "Beans must be public", beanType);
                 return null;
             }
             if (beanType.getModifiers().contains(Modifier.ABSTRACT)) {
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                        "@Singleton beans cannot be abstract", beanType);
+                        "Beans cannot be abstract", beanType);
                 return null;
             }
 
@@ -154,7 +326,7 @@ public final class ArcBeanProcessor extends AbstractProcessor {
                 ExecutableElement constructor = selection.constructor();
                 if (!constructor.getModifiers().contains(Modifier.PUBLIC)) {
                     processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                            "Injection constructors must be public in the first ArC prototype", constructor);
+                            "Injection constructors must be public", constructor);
                     return null;
                 }
                 for (VariableElement parameter : constructor.getParameters()) {
@@ -162,7 +334,75 @@ public final class ArcBeanProcessor extends AbstractProcessor {
                 }
             }
 
-            return new BeanDefinition(beanType.getQualifiedName().toString(), parameters);
+            // Find @PostConstruct and @PreDestroy methods
+            String postConstructMethod = findLifecycleMethod(beanType, PostConstruct.class, processingEnv);
+            String preDestroyMethod = findLifecycleMethod(beanType, PreDestroy.class, processingEnv);
+
+            // Find qualifier annotations
+            List<String> qualifiers = findQualifiers(beanType, processingEnv);
+
+            // Validate @Dependent beans cannot have @PreDestroy invoked by container
+            if (scope == Scope.DEPENDENT && preDestroyMethod != null) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
+                        "@Dependent beans cannot have @PreDestroy invoked by container automatically. " +
+                        "@PreDestroy will only be called when InstanceHandle.close() is invoked.", beanType);
+            }
+
+            return new BeanDefinition(beanType.getQualifiedName().toString(), scope, parameters,
+                    postConstructMethod, preDestroyMethod, qualifiers);
+        }
+
+        private static String findLifecycleMethod(TypeElement beanType, Class<? extends java.lang.annotation.Annotation> annotationClass,
+                                              ProcessingEnvironment processingEnv) {
+            List<ExecutableElement> methods = ElementFilter.methodsIn(beanType.getEnclosedElements());
+            List<ExecutableElement> annotatedMethods = methods.stream()
+                    .filter(m -> m.getAnnotation(annotationClass) != null)
+                    .toList();
+
+            if (annotatedMethods.isEmpty()) {
+                return null;
+            }
+
+            if (annotatedMethods.size() > 1) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "Only one method can be annotated with @" + annotationClass.getSimpleName(), beanType);
+                return null;
+            }
+
+            ExecutableElement method = annotatedMethods.get(0);
+            
+            // Validate method signature: public void methodName()
+            if (!method.getModifiers().contains(Modifier.PUBLIC)) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "@" + annotationClass.getSimpleName() + " method must be public", method);
+                return null;
+            }
+            
+            if (!method.getParameters().isEmpty()) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "@" + annotationClass.getSimpleName() + " method must have no parameters", method);
+                return null;
+            }
+            
+            if (!processingEnv.getTypeUtils().isSameType(method.getReturnType(), 
+                    processingEnv.getTypeUtils().getNoType(TypeKind.VOID))) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "@" + annotationClass.getSimpleName() + " method must return void", method);
+                return null;
+            }
+
+            return method.getSimpleName().toString();
+        }
+
+        private static List<String> findQualifiers(TypeElement beanType, ProcessingEnvironment processingEnv) {
+            List<String> qualifiers = new ArrayList<>();
+            for (javax.lang.model.element.AnnotationMirror annotation : beanType.getAnnotationMirrors()) {
+                TypeElement annotationElement = (TypeElement) annotation.getAnnotationType().asElement();
+                if (annotationElement.getAnnotation(com.tanwir.arc.Qualifier.class) != null) {
+                    qualifiers.add(annotationElement.getQualifiedName().toString());
+                }
+            }
+            return qualifiers;
         }
 
         private static ConstructorSelection selectConstructor(TypeElement beanType, ProcessingEnvironment processingEnv) {

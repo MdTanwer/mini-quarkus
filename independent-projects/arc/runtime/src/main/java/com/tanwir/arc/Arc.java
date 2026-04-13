@@ -53,6 +53,9 @@ public final class Arc {
     }
 
     public static void shutdown() {
+        if (container != null) {
+            ((SimpleArcContainer) container).destroyAll();  // triggers @PreDestroy on all scopes
+        }
         container = null;
     }
 }

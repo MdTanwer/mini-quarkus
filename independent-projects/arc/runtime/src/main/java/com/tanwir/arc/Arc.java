@@ -39,7 +39,7 @@ public final class Arc {
     public static ArcContainer initialize(Class<?>... beanTypes) {
         SimpleArcContainer initialized = new SimpleArcContainer();
         for (Class<?> beanType : beanTypes) {
-            initialized.registerReflectiveSingleton(beanType);
+            initialized.registerReflectiveBean(beanType);
         }
         container = initialized;
         return initialized;

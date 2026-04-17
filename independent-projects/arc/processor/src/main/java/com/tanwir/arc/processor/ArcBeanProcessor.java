@@ -157,15 +157,11 @@ public final class ArcBeanProcessor extends AbstractProcessor {
                     writer.write("            Scope." + bean.scope.name() + ",\n");
                     writer.write("            container -> ");
                     writer.write("new " + beanClassName + "(");
-                    if (bean.scope == Scope.APPLICATION) {
-                        writer.write("container"); // Proxy needs container reference
-                    } else {
-                        for (int i = 0; i < bean.constructorParameters.size(); i++) {
-                            if (i > 0) {
-                                writer.write(", ");
-                            }
-                            writer.write("container.instance(" + bean.constructorParameters.get(i) + ".class).get()");
+                    for (int i = 0; i < bean.constructorParameters.size(); i++) {
+                        if (i > 0) {
+                            writer.write(", ");
                         }
+                        writer.write("container.instance(" + bean.constructorParameters.get(i) + ".class).get()");
                     }
                     writer.write("),\n");
                     writer.write("            " + (bean.postConstructMethod != null ? "\"" + bean.postConstructMethod + "\"" : "null") + ",\n");
@@ -208,59 +204,25 @@ public final class ArcBeanProcessor extends AbstractProcessor {
             JavaFileObject file = filer.createSourceFile(proxyQualifiedName);
             try (Writer writer = file.openWriter()) {
                 writer.write("package " + proxyPackage + ";\n\n");
-                writer.write("import com.tanwir.arc.ArcContainer;\n\n");
                 writer.write("// Generated proxy for: @" + bean.scope.name().toLowerCase() + " " + bean.qualifiedName + "\n");
                 writer.write("public final class " + proxySimpleName + " extends " + bean.qualifiedName + " {\n");
-                writer.write("    private final ArcContainer container;\n\n");
-                writer.write("    public " + proxySimpleName + "(ArcContainer container) {\n");
-                writer.write("        this.container = container;\n");
-                writer.write("    }\n\n");
-                
-                // Get the bean type element to find methods to override
-                TypeElement beanType = processingEnv.getElementUtils().getTypeElement(bean.qualifiedName);
-                List<ExecutableElement> methods = ElementFilter.methodsIn(beanType.getEnclosedElements());
-                
-                for (ExecutableElement method : methods) {
-                    // Only override public, non-final, non-static methods
-                    if (method.getModifiers().contains(Modifier.PUBLIC) &&
-                        !method.getModifiers().contains(Modifier.FINAL) &&
-                        !method.getModifiers().contains(Modifier.STATIC)) {
-                        
-                        writer.write("    @Override\n");
-                        writer.write("    public " + method.getReturnType() + " " + method.getSimpleName() + "(");
-                        
-                        // Parameters
-                        List<? extends VariableElement> parameters = method.getParameters();
-                        for (int i = 0; i < parameters.size(); i++) {
-                            if (i > 0) writer.write(", ");
-                            writer.write(parameters.get(i).asType() + " " + parameters.get(i).getSimpleName());
-                        }
-                        writer.write(")");
-                        
-                        // Throws clause
-                        List<? extends TypeMirror> thrownTypes = method.getThrownTypes();
-                        if (!thrownTypes.isEmpty()) {
-                            writer.write(" throws ");
-                            for (int i = 0; i < thrownTypes.size(); i++) {
-                                if (i > 0) writer.write(", ");
-                                writer.write(thrownTypes.get(i).toString());
-                            }
-                        }
-                        
-                        writer.write(" {\n");
-                        writer.write("        return container.instance(" + bean.qualifiedName + ".class).get()." + 
-                                   method.getSimpleName() + "(");
-                        
-                        // Forward parameters
-                        for (int i = 0; i < parameters.size(); i++) {
-                            if (i > 0) writer.write(", ");
-                            writer.write(parameters.get(i).getSimpleName().toString());
-                        }
-                        writer.write(");\n");
-                        writer.write("    }\n\n");
+                writer.write("    public " + proxySimpleName + "(");
+                for (int i = 0; i < bean.constructorParameters.size(); i++) {
+                    if (i > 0) {
+                        writer.write(", ");
                     }
+                    writer.write(bean.constructorParameters.get(i) + " arg" + i);
                 }
-                
+                writer.write(") {\n");
+                writer.write("        super(");
+                for (int i = 0; i < bean.constructorParameters.size(); i++) {
+                    if (i > 0) {
+                        writer.write(", ");
+                    }
+                    writer.write("arg" + i);
+                }
+                writer.write(");\n");
+                writer.write("    }\n");
                 writer.write("}\n");
             }
         } catch (IOException e) {

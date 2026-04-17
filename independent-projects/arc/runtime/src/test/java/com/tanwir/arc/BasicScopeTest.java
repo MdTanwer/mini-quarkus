@@ -25,13 +25,13 @@ class BasicScopeTest {
 
     @Test
     void shouldSupportDependentScope() {
-        // Note: This test demonstrates the limitation of Arc.initialize(Class<?>...)
-        // It only supports @Singleton beans via registerReflectiveSingleton
-        // For full scope support (@ApplicationScoped, @RequestScoped, @Dependent),
-        // we need the annotation processor to generate bean descriptors
-        assertThrows(IllegalArgumentException.class, () -> {
-            Arc.initialize(TestDependentBean.class);
-        });
+        Arc.initialize(TestDependentBean.class);
+
+        TestDependentBean first = Arc.container().instance(TestDependentBean.class).get();
+        TestDependentBean second = Arc.container().instance(TestDependentBean.class).get();
+
+        assertNotSame(first, second);
+        assertEquals("dependent-message", first.getMessage());
     }
 }
 

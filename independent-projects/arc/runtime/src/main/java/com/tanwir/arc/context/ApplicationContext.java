@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ApplicationContext implements ScopeContext {
-    private final Map<Class<?>, Object> instances = new ConcurrentHashMap<>();
+    private final Map<Class<?>, ContextInstance> instances = new ConcurrentHashMap<>();
 
     @Override
     public Scope scope() {
@@ -22,14 +22,14 @@ public class ApplicationContext implements ScopeContext {
         return (T) instances.computeIfAbsent(descriptor.beanClass(), k -> {
             T instance = descriptor.factory().create(container);
             invokePostConstruct(instance, descriptor);
-            return instance;
-        });
+            return new ContextInstance(descriptor, instance);
+        }).instance();
     }
 
     @Override
     public void destroy() {
-        for (Object instance : instances.values()) {
-            invokePreDestroy(instance);
+        for (ContextInstance instance : instances.values()) {
+            invokePreDestroy(instance.instance(), instance.descriptor());
         }
         instances.clear();
     }
@@ -43,6 +43,7 @@ public class ApplicationContext implements ScopeContext {
         if (descriptor.postConstructMethod() != null) {
             try {
                 Method method = instance.getClass().getMethod(descriptor.postConstructMethod());
+                method.setAccessible(true);
                 method.invoke(instance);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to invoke @PostConstruct method", e);
@@ -50,15 +51,19 @@ public class ApplicationContext implements ScopeContext {
         }
     }
 
-    private void invokePreDestroy(Object instance) {
-        for (Method method : instance.getClass().getMethods()) {
-            if (method.isAnnotationPresent(com.tanwir.arc.PreDestroy.class)) {
-                try {
-                    method.invoke(instance);
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to invoke @PreDestroy method", e);
-                }
-            }
+    private void invokePreDestroy(Object instance, BeanDescriptor<?> descriptor) {
+        if (descriptor.preDestroyMethod() == null) {
+            return;
         }
+        try {
+            Method method = instance.getClass().getMethod(descriptor.preDestroyMethod());
+            method.setAccessible(true);
+            method.invoke(instance);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to invoke @PreDestroy method", e);
+        }
+    }
+
+    private record ContextInstance(BeanDescriptor<?> descriptor, Object instance) {
     }
 }

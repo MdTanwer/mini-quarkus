@@ -33,6 +33,7 @@ public class DependentContext implements ScopeContext {
         if (descriptor.postConstructMethod() != null) {
             try {
                 Method method = instance.getClass().getMethod(descriptor.postConstructMethod());
+                method.setAccessible(true);
                 method.invoke(instance);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to invoke @PostConstruct method", e);
@@ -48,6 +49,7 @@ public class DependentContext implements ScopeContext {
         for (Method method : instance.getClass().getMethods()) {
             if (method.isAnnotationPresent(com.tanwir.arc.PreDestroy.class)) {
                 try {
+                    method.setAccessible(true);
                     method.invoke(instance);
                 } catch (Exception e) {
                     throw new RuntimeException("Failed to invoke @PreDestroy method", e);

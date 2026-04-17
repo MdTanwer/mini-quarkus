@@ -15,13 +15,12 @@ class DependentTest {
 
     @Test
     void shouldReturnDifferentInstancesOnEachCall() {
-        // Note: This test currently fails because Arc.initialize(Class<?>...) 
-        // only supports @Singleton beans via registerReflectiveSingleton
-        // For full scope support, we need the annotation processor
-        // This is a limitation of the current test setup
-        assertThrows(IllegalArgumentException.class, () -> {
-            Arc.initialize(TestDependentBean.class);
-        });
+        Arc.initialize(TestDependentScopedBean.class);
+
+        TestDependentScopedBean first = Arc.container().instance(TestDependentScopedBean.class).get();
+        TestDependentScopedBean second = Arc.container().instance(TestDependentScopedBean.class).get();
+
+        assertNotSame(first, second);
     }
 
     @Test
@@ -44,6 +43,10 @@ class DependentTest {
         
         assertTrue(bean.isPostConstructCalled());
     }
+}
+
+@Dependent
+class TestDependentScopedBean {
 }
 
 

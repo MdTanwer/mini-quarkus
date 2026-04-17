@@ -8,11 +8,10 @@ public class RequestContextController {
     }
 
     public void activate() {
-        // Ensure the thread-local map is initialized
-        // This is handled by ThreadLocal.withInitial() in RequestContext
+        requestContext.activate();
     }
 
     public void deactivate() {
-        requestContext.destroy();
+        requestContext.deactivate();
     }
 }

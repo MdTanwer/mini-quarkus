@@ -6,9 +6,10 @@ import com.tanwir.arc.Scope;
 
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RequestContext implements ScopeContext {
-    private final ThreadLocal<Map<Class<?>, Object>> requestInstances = ThreadLocal.withInitial(() -> new java.util.concurrent.ConcurrentHashMap<>());
+    private final ThreadLocal<Map<Class<?>, ContextInstance>> requestInstances = new ThreadLocal<>();
 
     @Override
     public Scope scope() {
@@ -24,15 +25,18 @@ public class RequestContext implements ScopeContext {
         return (T) requestInstances.get().computeIfAbsent(descriptor.beanClass(), k -> {
             T instance = descriptor.factory().create(container);
             invokePostConstruct(instance, descriptor);
-            return instance;
-        });
+            return new ContextInstance(descriptor, instance);
+        }).instance();
     }
 
     @Override
     public void destroy() {
-        Map<Class<?>, Object> instances = requestInstances.get();
-        for (Object instance : instances.values()) {
-            invokePreDestroy(instance);
+        Map<Class<?>, ContextInstance> instances = requestInstances.get();
+        if (instances == null) {
+            return;
+        }
+        for (ContextInstance contextInstance : instances.values()) {
+            invokePreDestroy(contextInstance.instance(), contextInstance.descriptor());
         }
         instances.clear();
         requestInstances.remove();
@@ -43,10 +47,21 @@ public class RequestContext implements ScopeContext {
         return requestInstances.get() != null;
     }
 
+    public void activate() {
+        if (!isActive()) {
+            requestInstances.set(new ConcurrentHashMap<>());
+        }
+    }
+
+    public void deactivate() {
+        destroy();
+    }
+
     private void invokePostConstruct(Object instance, BeanDescriptor<?> descriptor) {
         if (descriptor.postConstructMethod() != null) {
             try {
                 Method method = instance.getClass().getMethod(descriptor.postConstructMethod());
+                method.setAccessible(true);
                 method.invoke(instance);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to invoke @PostConstruct method", e);
@@ -54,15 +69,19 @@ public class RequestContext implements ScopeContext {
         }
     }
 
-    private void invokePreDestroy(Object instance) {
-        for (Method method : instance.getClass().getMethods()) {
-            if (method.isAnnotationPresent(com.tanwir.arc.PreDestroy.class)) {
-                try {
-                    method.invoke(instance);
-                } catch (Exception e) {
-                    throw new RuntimeException("Failed to invoke @PreDestroy method", e);
-                }
-            }
+    private void invokePreDestroy(Object instance, BeanDescriptor<?> descriptor) {
+        if (descriptor.preDestroyMethod() == null) {
+            return;
         }
+        try {
+            Method method = instance.getClass().getMethod(descriptor.preDestroyMethod());
+            method.setAccessible(true);
+            method.invoke(instance);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to invoke @PreDestroy method", e);
+        }
+    }
+
+    private record ContextInstance(BeanDescriptor<?> descriptor, Object instance) {
     }
 }

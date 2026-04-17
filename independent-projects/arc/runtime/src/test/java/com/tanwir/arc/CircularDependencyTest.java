@@ -14,9 +14,10 @@ class CircularDependencyTest {
 
     @Test
     void shouldDetectCircularDependency() {
-        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> {
-            Arc.initialize(CircularBeanA.class, CircularBeanB.class);
-        });
+        Arc.initialize(CircularBeanA.class, CircularBeanB.class);
+
+        IllegalStateException exception = assertThrows(IllegalStateException.class,
+                () -> Arc.container().instance(CircularBeanA.class).get());
         
         assertTrue(exception.getMessage().contains("Circular dependency detected"));
     }

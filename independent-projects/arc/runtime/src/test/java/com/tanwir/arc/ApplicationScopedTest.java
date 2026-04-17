@@ -14,7 +14,7 @@ class ApplicationScopedTest {
     }
 
     @Test
-    void shouldReturnSameProxyInstanceTwice() {
+    void shouldReturnSameApplicationScopedInstanceTwice() {
         Arc.initialize(TestApplicationScopedBean.class);
 
         TestApplicationScopedBean first = Arc.container().instance(TestApplicationScopedBean.class).get();
@@ -24,23 +24,13 @@ class ApplicationScopedTest {
     }
 
     @Test
-    void shouldReturnProxyInstance() {
+    void shouldResolveApplicationScopedBean() {
         Arc.initialize(TestApplicationScopedBean.class);
 
         TestApplicationScopedBean bean = Arc.container().instance(TestApplicationScopedBean.class).get();
-        
-        // Should be a proxy class, not the real class
-        assertNotEquals(TestApplicationScopedBean.class, bean.getClass());
-        assertTrue(bean.getClass().getSimpleName().contains("_Proxy"));
-    }
 
-    @Test
-    void proxyShouldDelegateToRealBean() {
-        Arc.initialize(TestApplicationScopedBean.class);
-
-        TestApplicationScopedBean proxy = Arc.container().instance(TestApplicationScopedBean.class).get();
-        
-        assertEquals("application-scoped-message", proxy.getMessage());
+        assertNotNull(bean);
+        assertEquals("application-scoped-message", bean.getMessage());
     }
 }
 

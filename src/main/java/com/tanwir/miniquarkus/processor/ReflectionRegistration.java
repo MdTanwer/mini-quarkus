@@ -1,4 +1,4 @@
-package com.tanwir.miniquarkus.generator;
+package com.tanwir.miniquarkus.processor;
 
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.FieldInfo;

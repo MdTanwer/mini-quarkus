@@ -1,13 +1,11 @@
-package com.tanwir.miniquarkus.generator;
+package com.tanwir.miniquarkus.processor;
 
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import org.jboss.jandex.DotName;
 
-import com.tanwir.miniquarkus.generator.BeanInfo.DeploymentInfo;
 
 /**
  * Validation test to ensure our Gizmo bytecode generator implementation
@@ -110,26 +108,16 @@ public class ValidationTest {
 
     private static void validateResourceCreation() {
         System.out.println("\n4. Validating resource creation:");
-        
+
         try {
-            // Test ResourceClassOutput
             TestBeanGenerator generator = new TestBeanGenerator();
             ResourceClassOutput output = generator.createResourceClassOutput(true);
-            
+
             if (output != null) {
                 System.out.println("   ✅ ResourceClassOutput created successfully");
             } else {
                 System.err.println("   ❌ ResourceClassOutput creation failed");
             }
-
-            // Test Resource creation
-            TestResourceOutput resourceOutput = new TestResourceOutput();
-            if (resourceOutput.getResources() != null) {
-                System.out.println("   ✅ ResourceOutput works correctly");
-            } else {
-                System.err.println("   ❌ ResourceOutput failed");
-            }
-
         } catch (Exception e) {
             System.err.println("   ❌ Resource creation failed: " + e.getMessage());
         }
@@ -137,20 +125,19 @@ public class ValidationTest {
 
     private static void validateCompleteWorkflow() {
         System.out.println("\n5. Validating complete workflow:");
-        
+
         try {
-            // Create a sample bean
             DeploymentInfo deploymentInfo = new DeploymentInfo(true, null);
             BeanInfo bean = createSampleBean(deploymentInfo);
 
-            // Process through complete workflow
-            TestWorkflow workflow = new TestWorkflow();
-            workflow.processBean(bean);
+            ReflectionRegistration reflectionRegistration = ReflectionRegistration.NOOP;
+            BeanGenerator beanGenerator = new BeanGenerator(false, reflectionRegistration,
+                    dotName -> true, Collections.emptySet());
+            beanGenerator.precomputeGeneratedName(bean);
+            java.util.Collection<ResourceOutput.Resource> resources = beanGenerator.generate(bean);
 
             System.out.println("   ✅ Complete workflow executed successfully");
-            System.out.println("   ✅ Generated resources: " + workflow.getGeneratedCount());
-            System.out.println("   ✅ Reflection registrations: " + workflow.getReflectionCount());
-
+            System.out.println("   ✅ Generated resources: " + resources.size());
         } catch (Exception e) {
             System.err.println("   ❌ Complete workflow failed: " + e.getMessage());
         }
@@ -186,30 +173,4 @@ public class ValidationTest {
         }
     }
 
-    private static class TestResourceOutput {
-        private final java.util.List<com.tanwir.miniquarkus.generator.ResourceOutput.Resource> resources = new java.util.ArrayList<>();
-
-        public java.util.List<com.tanwir.miniquarkus.generator.ResourceOutput.Resource> getResources() {
-            return resources;
-        }
-    }
-
-    private static class TestWorkflow {
-        private int generatedCount = 0;
-        private int reflectionCount = 0;
-
-        public void processBean(BeanInfo bean) {
-            // Simulate generation
-            generatedCount += 3; // bean + proxy + subclass
-            reflectionCount += 5; // simulate some reflection registrations
-        }
-
-        public int getGeneratedCount() {
-            return generatedCount;
-        }
-
-        public int getReflectionCount() {
-            return reflectionCount;
-        }
-    }
 }

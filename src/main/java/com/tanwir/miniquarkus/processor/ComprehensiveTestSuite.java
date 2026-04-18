@@ -201,7 +201,7 @@ public class ComprehensiveTestSuite {
             DeploymentInfo deploymentInfo = new DeploymentInfo(true, null);
             BeanInfo bean = createTestBean(deploymentInfo);
             
-            Collection<com.tanwir.miniquarkus.generator.ResourceOutput.Resource> resources = generator.generate(bean);
+            Collection<ResourceOutput.Resource> resources = generator.generate(bean);
             if (!resources.isEmpty()) {
                 System.out.println("   ✅ BeanGenerator.generate() works correctly");
             } else {
@@ -223,7 +223,7 @@ public class ComprehensiveTestSuite {
             DeploymentInfo deploymentInfo = new DeploymentInfo(true, null);
             BeanInfo bean = createTestBean(deploymentInfo);
             
-            Collection<com.tanwir.miniquarkus.generator.ResourceOutput.Resource> resources = generator.generate(bean, "com.example.TestService");
+            Collection<ResourceOutput.Resource> resources = generator.generate(bean, "com.example.TestService");
             if (!resources.isEmpty()) {
                 System.out.println("   ✅ ClientProxyGenerator.generate() works correctly");
             } else {
@@ -245,7 +245,7 @@ public class ComprehensiveTestSuite {
             DeploymentInfo deploymentInfo = new DeploymentInfo(true, null);
             BeanInfo bean = createTestBean(deploymentInfo);
             
-            Collection<com.tanwir.miniquarkus.generator.ResourceOutput.Resource> resources = generator.generate(bean, "com.example.TestService");
+            Collection<ResourceOutput.Resource> resources = generator.generate(bean, "com.example.TestService");
             if (!resources.isEmpty()) {
                 System.out.println("   ✅ SubclassGenerator.generate() works correctly");
             } else {
@@ -268,7 +268,7 @@ public class ComprehensiveTestSuite {
             InterceptorGenerator.InterceptorInfo info = new InterceptorGenerator.InterceptorInfo(
                 interceptorClass, java.util.Set.of(), 1);
             
-            Collection<com.tanwir.miniquarkus.generator.ResourceOutput.Resource> resources = generator.generate(info);
+            Collection<ResourceOutput.Resource> resources = generator.generate(info);
             if (!resources.isEmpty()) {
                 System.out.println("   ✅ InterceptorGenerator.generate() works correctly");
             } else {
@@ -291,7 +291,7 @@ public class ComprehensiveTestSuite {
             DecoratorGenerator.DecoratorInfo info = new DecoratorGenerator.DecoratorInfo(
                 decoratorClass, java.util.Set.of(), createTestDelegateClass(), 1);
             
-            Collection<com.tanwir.miniquarkus.generator.ResourceOutput.Resource> resources = generator.generate(info);
+            Collection<ResourceOutput.Resource> resources = generator.generate(info);
             if (!resources.isEmpty()) {
                 System.out.println("   ✅ DecoratorGenerator.generate() works correctly");
             } else {
@@ -575,7 +575,7 @@ public class ComprehensiveTestSuite {
     }
 
     private static class TestResourceClassOutput extends com.tanwir.miniquarkus.processor.ResourceClassOutput {
-        private final java.util.List<com.tanwir.miniquarkus.generator.ResourceOutput.Resource> resources = 
+        private final java.util.List<ResourceOutput.Resource> resources = 
                 new java.util.ArrayList<>();
 
         @Override
@@ -585,7 +585,7 @@ public class ComprehensiveTestSuite {
         }
 
         @Override
-        public java.util.List<com.tanwir.miniquarkus.generator.ResourceOutput.Resource> getResources() {
+        public java.util.List<ResourceOutput.Resource> getResources() {
             return resources;
         }
     }

@@ -1,4 +1,4 @@
-package com.tanwir.miniquarkus.generator;
+package com.tanwir.miniquarkus.processor;
 
 import static org.jboss.jandex.gizmo2.Jandex2Gizmo.classDescOf;
 import static org.jboss.jandex.gizmo2.Jandex2Gizmo.methodDescOf;
@@ -18,9 +18,6 @@ import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.Type;
 
-import com.tanwir.miniquarkus.generator.BeanInfo.DeploymentInfo;
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource;
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource.SpecialType;
 
 import io.quarkus.arc.InjectableBean;
 import io.quarkus.arc.impl.BuiltinBean;
@@ -242,27 +239,24 @@ public class BeanGenerator extends AbstractGenerator {
         cc.method("create", mc -> {
             mc.public_();
             mc.returning(classDescOf(bean.getProviderType()));
-            ParamVar creationalContextParam = mc.parameter("creationalContext", 
+            mc.parameter("creationalContext",
                 ClassDesc.of("jakarta.enterprise.context.spi.CreationalContext"));
-            
+
             mc.body(bc -> {
                 bc.try_(tc -> {
                     tc.body(tbc -> {
                         if (bean.isClassBean()) {
-                            // Create new instance using reflection
-                            Expr instance = tbc.invokeStatic(
-                                MethodDesc.of("com.tanwir.miniquarkus.util.Reflections", "newInstance", Object.class, Class.class),
-                                Const.of(classDescOf(bean.getProviderType())));
-                            
+                            // Direct constructor invocation — no reflection, following Quarkus ARC pattern
+                            Expr instance = tbc.new_(ConstructorDesc.of(classDescOf(bean.getProviderType())));
                             tbc.return_(tbc.checkCast(instance, classDescOf(bean.getProviderType())));
                         } else {
-                            // Handle producer methods/fields (simplified)
                             tbc.throw_(tbc.new_(ConstructorDesc.of("java.lang.UnsupportedOperationException")));
                         }
                     });
                     tc.catch_(Exception.class, "e", (tbc, exceptionVar) -> {
-                        // Wrap in CreationException following Quarkus patterns
-                        tbc.throw_(tbc.new_(ConstructorDesc.of("jakarta.enterprise.inject.CreationException", Throwable.class), exceptionVar));
+                        tbc.throw_(tbc.new_(
+                            ConstructorDesc.of("jakarta.enterprise.inject.CreationException", Throwable.class),
+                            exceptionVar));
                     });
                 });
             });
@@ -296,15 +290,19 @@ public class BeanGenerator extends AbstractGenerator {
     }
 
     private void generateGetQualifiersMethod(ClassCreator cc, FieldDesc qualifiersField) {
-        if (qualifiersField != null) {
-            cc.method("getQualifiers", mc -> {
-                mc.public_();
-                mc.returning(ClassDesc.of("java.util.Set"));
-                mc.body(bc -> {
+        cc.method("getQualifiers", mc -> {
+            mc.public_();
+            mc.returning(ClassDesc.of("java.util.Set"));
+            mc.body(bc -> {
+                if (qualifiersField != null) {
                     bc.return_(cc.this_().field(qualifiersField));
-                });
+                } else {
+                    // Return immutable empty set for beans with only default qualifiers
+                    bc.return_(bc.invokeStatic(
+                        MethodDesc.of("java.util.Set", "of", ClassDesc.of("java.util.Set"))));
+                }
             });
-        }
+        });
     }
 
     private void generateGetScopeMethod(ClassCreator cc, BeanInfo bean) {
@@ -373,20 +371,28 @@ public class BeanGenerator extends AbstractGenerator {
             mc.returning(boolean.class);
             ParamVar otherParam = mc.parameter("other", Object.class);
             mc.body(bc -> {
+                // if (this == other) return true;
                 bc.if_(bc.sameAs(cc.this_(), otherParam), thenBlock -> {
                     thenBlock.return_(Const.of(true));
                 });
-                
-                bc.if_(bc.isNull(otherParam) || bc.not(bc.instanceOf(otherParam, cc.type())), elseBlock -> {
-                    elseBlock.return_(Const.of(false));
+
+                // if (other == null) return false;
+                bc.if_(bc.isNull(otherParam), thenBlock -> {
+                    thenBlock.return_(Const.of(false));
                 });
-                
+
+                // if (!(other instanceof ThisClass)) return false;
+                bc.if_(bc.not(bc.instanceOf(otherParam, cc.type())), thenBlock -> {
+                    thenBlock.return_(Const.of(false));
+                });
+
+                // return identifier.equals(((ThisClass) other).getName());
                 LocalVar otherBean = bc.localVar("otherBean", bc.checkCast(otherParam, cc.type()));
                 Expr result = bc.invokeVirtual(
                     MethodDesc.of(Object.class, "equals", boolean.class, Object.class),
-                    Const.of(bean.getIdentifier()), 
+                    Const.of(bean.getIdentifier()),
                     bc.invokeVirtual(MethodDesc.of(cc.type(), "getName", String.class), otherBean));
-                
+
                 bc.return_(result);
             });
         });
@@ -428,6 +434,4 @@ public class BeanGenerator extends AbstractGenerator {
         return lastDot > 0 ? className.substring(0, lastDot) : "";
     }
 
-    // Missing field declaration - add this
-    private FieldDesc scopeField;
 }

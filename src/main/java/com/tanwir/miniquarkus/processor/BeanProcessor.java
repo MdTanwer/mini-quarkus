@@ -1,6 +1,5 @@
 package com.tanwir.miniquarkus.processor;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -13,33 +12,16 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import org.jboss.jandex.AnnotationInstance;
-import org.jboss.jandex.AnnotationTarget;
 import org.jboss.jandex.AnnotationValue;
 import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.FieldInfo;
 import org.jboss.jandex.IndexView;
 import org.jboss.jandex.MethodInfo;
-import org.jboss.jandex.MethodParameterInfo;
 import org.jboss.jandex.Type;
 
-import com.tanwir.miniquarkus.processor.DotNames;
-import com.tanwir.miniquarkus.processor.ReflectionRegistration;
-import com.tanwir.miniquarkus.processor.ResourceClassOutput;
-import com.tanwir.miniquarkus.processor.ResourceOutput.Resource;
 
-import io.quarkus.arc.impl.BuiltinBean;
-import io.quarkus.arc.impl.BuiltinQualifier;
 import io.quarkus.arc.impl.BuiltinScope;
-import io.quarkus.gizmo2.Const;
-import io.quarkus.gizmo2.Expr;
-import io.quarkus.gizmo2.Gizmo;
-import io.quarkus.gizmo2.LocalVar;
-import io.quarkus.gizmo2.ParamVar;
-import io.quarkus.gizmo2.creator.BlockCreator;
-import io.quarkus.gizmo2.creator.ClassCreator;
-import io.quarkus.gizmo2.desc.FieldDesc;
-import io.quarkus.gizmo2.desc.MethodDesc;
 
 /**
  * BeanProcessor following Quarkus ARC patterns.
@@ -261,14 +243,14 @@ public class BeanProcessor {
 
     /**
      * Processes a single bean and generates all necessary bytecode.
+     * Delegates to {@link BeanGenerator} following the Quarkus ARC pattern.
      */
     private Collection<Resource> processBean(BeanInfo beanInfo) {
-        Collection<Resource> resources = new ArrayList<>();
-        
-        // This would normally delegate to specific generators
-        // For this example, we'll simulate the generation
-        
-        return resources;
+        Set<String> existingClasses = new HashSet<>();
+        BeanGenerator beanGenerator = new BeanGenerator(false, reflectionRegistration,
+                applicationClassPredicate::test, existingClasses);
+        beanGenerator.precomputeGeneratedName(beanInfo);
+        return beanGenerator.generate(beanInfo);
     }
 
     /**

@@ -1,4 +1,4 @@
-package com.tanwir.miniquarkus.generator;
+package com.tanwir.miniquarkus.processor;
 
 import static java.lang.constant.ConstantDescs.CD_Object;
 import static org.jboss.jandex.gizmo2.Jandex2Gizmo.classDescOf;
@@ -18,8 +18,6 @@ import org.jboss.jandex.DotName;
 import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.Type;
 
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource;
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource.SpecialType;
 
 import io.quarkus.arc.ClientProxy;
 import io.quarkus.arc.InjectableBean;
@@ -147,8 +145,11 @@ public class ClientProxyGenerator extends AbstractGenerator {
         });
     }
 
+    private ClassDesc currentProviderClassDesc;
+
     private FieldDesc generateMockField(ClassCreator cc, ClassDesc providerClassDesc) {
         if (mockable) {
+            this.currentProviderClassDesc = providerClassDesc;
             return cc.field(MOCK_FIELD, fc -> {
                 fc.private_();
                 fc.volatile_();
@@ -261,32 +262,53 @@ public class ClientProxyGenerator extends AbstractGenerator {
             mc.public_();
             mc.returning(void.class);
             mc.body(bc -> {
-                bc.set(cc.this_().field(mockField), Const.ofNull(providerClassDesc));
+                bc.set(cc.this_().field(mockField), Const.ofNull(currentProviderClassDesc));
                 bc.return_();
             });
         });
     }
 
     private void generateBusinessMethods(ClassCreator cc, BeanInfo bean, ClassDesc providerClassDesc, boolean isInterface) {
-        // Example business method - in real implementation this would scan all methods
-        cc.method("process", mc -> {
-            mc.public_();
-            mc.returning(String.class);
-            ParamVar inputParam = mc.parameter("input", String.class);
-            mc.body(bc -> {
-                // Get delegate instance
-                Expr delegate = bc.invokeVirtual(
-                    MethodDesc.of(cc.type(), DELEGATE_METHOD_NAME, providerClassDesc),
-                    cc.this_());
-                
-                // Delegate the call
-                Expr result = bc.invokeVirtual(
-                    MethodDesc.of(providerClassDesc, "process", String.class, String.class),
-                    delegate, inputParam);
-                
-                bc.return_(result);
+        ClassInfo providerClass = getClassFromType(bean.getProviderType());
+        if (providerClass == null) {
+            return;
+        }
+        for (MethodInfo method : providerClass.methods()) {
+            if (method.isSynthetic() || method.isConstructor()
+                    || java.lang.reflect.Modifier.isStatic(method.flags())
+                    || java.lang.reflect.Modifier.isPrivate(method.flags())
+                    || java.lang.reflect.Modifier.isFinal(method.flags())) {
+                continue;
+            }
+            MethodDesc methodDesc = methodDescOf(method);
+            cc.method(methodDesc, mc -> {
+                mc.public_();
+                List<ParamVar> params = new ArrayList<>();
+                for (int i = 0; i < method.parametersCount(); i++) {
+                    params.add(mc.parameter("p" + i, classDescOf(method.parameterType(i))));
+                }
+                mc.body(bc -> {
+                    Expr delegate = bc.invokeVirtual(
+                        MethodDesc.of(cc.type(), DELEGATE_METHOD_NAME, providerClassDesc),
+                        cc.this_());
+                    if (isInterface) {
+                        Expr result = bc.invokeInterface(methodDesc, delegate, params.toArray(new Expr[0]));
+                        if (method.returnType().kind() == org.jboss.jandex.Type.Kind.VOID) {
+                            bc.return_();
+                        } else {
+                            bc.return_(result);
+                        }
+                    } else {
+                        Expr result = bc.invokeVirtual(methodDesc, delegate, params.toArray(new Expr[0]));
+                        if (method.returnType().kind() == org.jboss.jandex.Type.Kind.VOID) {
+                            bc.return_();
+                        } else {
+                            bc.return_(result);
+                        }
+                    }
+                });
             });
-        });
+        }
     }
 
     private void generateClientProxyMethods(ClassCreator cc, FieldDesc beanField, FieldDesc contextField) {

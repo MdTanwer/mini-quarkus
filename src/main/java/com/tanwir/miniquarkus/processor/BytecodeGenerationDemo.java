@@ -1,4 +1,4 @@
-package com.tanwir.miniquarkus.generator;
+package com.tanwir.miniquarkus.processor;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -9,8 +9,6 @@ import java.util.function.Predicate;
 
 import org.jboss.jandex.DotName;
 
-import com.tanwir.miniquarkus.generator.BeanInfo.DeploymentInfo;
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource;
 
 /**
  * Comprehensive demonstration of Quarkus-style Bytecode Generation using Gizmo.
@@ -59,10 +57,6 @@ public class BytecodeGenerationDemo {
         List<Resource> subclassResources = (List<Resource>) subclassGenerator.generate(sampleBean, "com.example.SampleService");
         printGeneratedResources(subclassResources);
 
-        // Demonstrate advanced patterns
-        System.out.println("\n4. Advanced Patterns Demonstration:");
-        demonstrateAdvancedPatterns();
-
         System.out.println("\n=== Demo Complete ===");
     }
 
@@ -95,20 +89,6 @@ public class BytecodeGenerationDemo {
             System.out.println("   Application Class: " + resource.isApplicationClass());
             System.out.println("   Size: " + resource.getData().length + " bytes");
         }
-    }
-
-    private static void demonstrateAdvancedPatterns() {
-        System.out.println("   Demonstrating advanced Quarkus bytecode generation patterns:");
-        
-        System.out.println("   - Lambda generation for functional interfaces");
-        System.out.println("   - Exception handling with try-catch blocks");
-        System.out.println("   - Collection operations (lists, sets, maps)");
-        System.out.println("   - Reflection registration for native image");
-        System.out.println("   - Bridge method generation for generics");
-        System.out.println("   - Interceptor chain management");
-        System.out.println("   - Context-aware proxy delegation");
-        System.out.println("   - Lifecycle callback integration");
-        System.out.println("   - Mock support in client proxies");
     }
 
     /**

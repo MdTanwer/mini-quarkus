@@ -1,4 +1,4 @@
-package com.tanwir.miniquarkus.generator;
+package com.tanwir.miniquarkus.processor;
 
 import java.util.List;
 import java.util.Set;

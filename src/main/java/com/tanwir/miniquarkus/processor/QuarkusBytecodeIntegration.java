@@ -1,9 +1,8 @@
-package com.tanwir.miniquarkus.generator;
+package com.tanwir.miniquarkus.processor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -14,8 +13,6 @@ import java.util.function.Predicate;
 import org.jboss.jandex.DotName;
 import org.jboss.jandex.Type;
 
-import com.tanwir.miniquarkus.generator.BeanInfo.DeploymentInfo;
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource;
 
 /**
  * Complete integration example showing how to use Quarkus-style bytecode generation
@@ -28,7 +25,7 @@ public class QuarkusBytecodeIntegration {
     private final Predicate<DotName> applicationClassPredicate;
     private final Set<String> existingClasses;
     private final Set<DotName> singleContextScopes;
-    private final Map<String, Class<?>> generatedClasses = new ConcurrentHashMap<>();
+    private final Map<String, String> generatedClasses = new ConcurrentHashMap<>();
 
     public QuarkusBytecodeIntegration() {
         this.reflectionRegistration = new IntegrationReflectionRegistration();
@@ -99,23 +96,18 @@ public class QuarkusBytecodeIntegration {
     }
 
     private void loadGeneratedClass(Resource resource) {
-        try {
-            // In a real Quarkus application, this would use the proper classloader
-            String className = resource.getName();
-            byte[] bytecode = resource.getData();
-            
-            System.out.println("Loading generated class: " + className);
-            System.out.println("  - Size: " + bytecode.length + " bytes");
-            System.out.println("  - Type: " + resource.getSpecialType());
-            
-            // Store the generated class info
-            generatedClasses.put(className, createMockClass(className));
-            existingClasses.add(className);
-            
-        } catch (Exception e) {
-            System.err.println("Failed to load generated class: " + resource.getName());
-            e.printStackTrace();
-        }
+        String className = resource.getName();
+        byte[] bytecode = resource.getData();
+
+        System.out.println("Loading generated class: " + className);
+        System.out.println("  - Size: " + bytecode.length + " bytes");
+        System.out.println("  - Type: " + resource.getSpecialType());
+
+        // Track the class as known so it is not regenerated.
+        // In a real Quarkus build, the bytecode would be written to a
+        // GeneratedClassBuildItem and later loaded by QuarkusClassLoader.
+        generatedClasses.put(className, className);
+        existingClasses.add(className);
     }
 
     private boolean needsClientProxy(BeanInfo bean) {
@@ -137,13 +129,7 @@ public class QuarkusBytecodeIntegration {
     }
 
     private boolean hasInterceptors(BeanInfo bean) {
-        // Simplified - in real implementation this would check for interceptor bindings
         return false;
-    }
-
-    private Class<?> createMockClass(String className) {
-        // Create a mock class for demonstration
-        return new MockClass(className);
     }
 
     /**
@@ -168,9 +154,7 @@ public class QuarkusBytecodeIntegration {
         System.out.println("=== Generation Summary ===");
         System.out.println("Total generated classes: " + generatedClasses.size());
         System.out.println("Generated classes:");
-        for (String className : generatedClasses.keySet()) {
-            System.out.println("  - " + className);
-        }
+        generatedClasses.keySet().stream().sorted().forEach(n -> System.out.println("  - " + n));
 
         // Show reflection registration summary
         if (reflectionRegistration instanceof IntegrationReflectionRegistration) {
@@ -216,22 +200,6 @@ public class QuarkusBytecodeIntegration {
         
         return new BeanInfo(beanClass, providerType, types, qualifiers, scopeDotName, 
                           deploymentInfo, className.toLowerCase());
-    }
-
-    /**
-     * Mock class for demonstration purposes.
-     */
-    private static class MockClass extends ClassLoader {
-        private final String className;
-
-        public MockClass(String className) {
-            this.className = className;
-        }
-
-        @Override
-        public String toString() {
-            return "MockClass[" + className + "]";
-        }
     }
 
     /**

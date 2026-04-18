@@ -146,9 +146,6 @@ public class DotNames {
     public static final DotName BIFUNCTION = create(java.util.function.BiFunction.class);
     public static final DotName PREDICATE = create(java.util.function.Predicate.class);
 
-    // Quarkus-specific annotations
-    public static final DotName VETOED = create(Vetoed.class);
-
     // Utility methods
     public static DotName create(Class<?> clazz) {
         return DotName.createSimple(clazz.getName());

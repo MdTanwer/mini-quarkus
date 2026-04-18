@@ -1,4 +1,4 @@
-package com.tanwir.miniquarkus.generator;
+package com.tanwir.miniquarkus.processor;
 
 import java.lang.reflect.Modifier;
 import java.util.function.Function;
@@ -7,10 +7,6 @@ import org.jboss.jandex.DotName;
 import org.jboss.jandex.FieldInfo;
 import org.jboss.jandex.MethodInfo;
 
-import com.tanwir.miniquarkus.generator.ReflectionRegistration;
-import com.tanwir.miniquarkus.generator.ResourceClassOutput;
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource;
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource.SpecialType;
 
 import io.quarkus.gizmo2.ClassOutput;
 import io.quarkus.gizmo2.Gizmo;
@@ -21,7 +17,7 @@ import io.quarkus.gizmo2.Gizmo;
  */
 public abstract class AbstractGenerator {
 
-    static final String DEFAULT_PACKAGE = "com.tanwir.miniquarkus.generator";
+    static final String DEFAULT_PACKAGE = "com.tanwir.miniquarkus.processor";
     static final String UNDERSCORE = "_";
     static final String SYNTHETIC_SUFFIX = "Synthetic";
 
@@ -39,16 +35,14 @@ public abstract class AbstractGenerator {
 
     /**
      * Creates a Gizmo instance with proper configuration following Quarkus patterns.
+     * Debug info and parameter tables are disabled for smaller bytecode.
+     * Lambdas are emitted as {@code invokedynamic} (not anonymous classes) — same as real Quarkus ARC.
      */
     protected static Gizmo gizmo(ClassOutput classOutput) {
-        ClassLoader tccl = Thread.currentThread().getContextClassLoader();
-        if (tccl == null) {
-            throw new IllegalStateException("No TCCL available");
-        }
         return Gizmo.create(classOutput)
                 .withDebugInfo(false)
                 .withParameters(false)
-                .withLambdasAsAnonymousClasses(true);
+                .withLambdasAsAnonymousClasses(false);
     }
 
     /**

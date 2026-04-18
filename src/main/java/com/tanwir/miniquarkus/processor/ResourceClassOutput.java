@@ -1,11 +1,9 @@
-package com.tanwir.miniquarkus.generator;
+package com.tanwir.miniquarkus.processor;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource;
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource.SpecialType;
 
 import io.quarkus.gizmo2.ClassOutput;
 

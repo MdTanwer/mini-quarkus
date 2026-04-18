@@ -1,4 +1,4 @@
-package com.tanwir.miniquarkus.generator;
+package com.tanwir.miniquarkus.processor;
 
 import static org.jboss.jandex.gizmo2.Jandex2Gizmo.classDescOf;
 import static org.jboss.jandex.gizmo2.Jandex2Gizmo.methodDescOf;
@@ -21,9 +21,6 @@ import org.jboss.jandex.DotName;
 import org.jboss.jandex.MethodInfo;
 import org.jboss.jandex.Type;
 
-import com.tanwir.miniquarkus.generator.BeanInfo.DeploymentInfo;
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource;
-import com.tanwir.miniquarkus.generator.ResourceOutput.Resource.SpecialType;
 
 import io.quarkus.arc.Subclass;
 import io.quarkus.arc.impl.InterceptedMethodMetadata;

@@ -1,2 +1,3 @@
-/home/ubuntu/quarkus/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/GreetingService.java
-/home/ubuntu/quarkus/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/MainResource.java
+/home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/GreetingService.java
+/home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/GreetingServiceConfigLoader.java
+/home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/MainResource.java

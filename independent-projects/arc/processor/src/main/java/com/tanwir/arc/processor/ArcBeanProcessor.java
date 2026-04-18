@@ -155,15 +155,25 @@ public final class ArcBeanProcessor extends AbstractProcessor {
                     writer.write("        beanRegistrar.register(new BeanDescriptor<>(\n");
                     writer.write("            " + bean.qualifiedName + ".class,\n"); // Always use original bean class as type
                     writer.write("            Scope." + bean.scope.name() + ",\n");
-                    writer.write("            container -> ");
-                    writer.write("new " + beanClassName + "(");
+                    writer.write("            container -> {\n");
+                    writer.write("                " + beanClassName + " instance = new " + beanClassName + "(");
                     for (int i = 0; i < bean.constructorParameters.size(); i++) {
                         if (i > 0) {
                             writer.write(", ");
                         }
                         writer.write("container.instance(" + bean.constructorParameters.get(i) + ".class).get()");
                     }
-                    writer.write("),\n");
+                    writer.write(");\n");
+                    // Inject configuration if the bean has @ConfigProperty fields
+                    writer.write("                try {\n");
+                    writer.write("                    Class<?> configLoaderClass = Class.forName(\"" + bean.qualifiedName + "ConfigLoader\");\n");
+                    writer.write("                    Object configLoader = configLoaderClass.getDeclaredConstructor().newInstance();\n");
+                    writer.write("                    configLoaderClass.getMethod(\"inject\", " + bean.qualifiedName + ".class).invoke(configLoader, instance);\n");
+                    writer.write("                } catch (Exception e) {\n");
+                    writer.write("                    // No config loader found or injection failed, that's okay\n");
+                    writer.write("                }\n");
+                    writer.write("                return instance;\n");
+                    writer.write("            },\n");
                     writer.write("            " + (bean.postConstructMethod != null ? "\"" + bean.postConstructMethod + "\"" : "null") + ",\n");
                     writer.write("            " + (bean.preDestroyMethod != null ? "\"" + bean.preDestroyMethod + "\"" : "null") + ",\n");
                     writer.write("            Set.of(");

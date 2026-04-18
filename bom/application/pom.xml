@@ -35,6 +35,11 @@
                 <artifactId>mini-quarkus-bootstrap-runner</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.tanwir</groupId>
+                <artifactId>mini-quarkus-config-runtime</artifactId>
+                <version>${project.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

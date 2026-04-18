@@ -1,0 +1,16 @@
+// File: com/tanwir/it/GreetingService.java
+package com.tanwir.it;
+
+import com.tanwir.config.ConfigProperty;
+
+public class GreetingService {
+
+    @ConfigProperty(name = "greeting.message", defaultValue = "Hello")
+    String message;
+
+    @ConfigProperty(name = "greeting.count", defaultValue = "1")
+    int count;
+
+    @ConfigProperty(name = "greeting.enabled", defaultValue = "true")
+    boolean enabled;
+}

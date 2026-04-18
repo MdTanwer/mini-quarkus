@@ -30,6 +30,11 @@
         </dependency>
         <dependency>
             <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-config-runtime</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tanwir</groupId>
             <artifactId>mini-quarkus-bootstrap-runner</artifactId>
             <scope>runtime</scope>
         </dependency>
@@ -40,9 +45,17 @@
             <scope>provided</scope>
             <optional>true</optional>
         </dependency>
-        <dependency>
+        <!-- Temporarily removed to test config system -->
+        <!-- <dependency>
             <groupId>com.tanwir</groupId>
             <artifactId>mini-quarkus-resteasy-reactive-processor</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+            <optional>true</optional>
+        </dependency> -->
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-config-processor</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
             <optional>true</optional>
@@ -74,9 +87,15 @@
                                     <artifactId>mini-quarkus-arc-processor</artifactId>
                                     <version>${project.version}</version>
                                 </path>
-                                <path>
+                                <!-- Temporarily removed to test config system -->
+                                <!-- <path>
                                     <groupId>com.tanwir</groupId>
                                     <artifactId>mini-quarkus-resteasy-reactive-processor</artifactId>
+                                    <version>${project.version}</version>
+                                </path> -->
+                                <path>
+                                    <groupId>com.tanwir</groupId>
+                                    <artifactId>mini-quarkus-config-processor</artifactId>
                                     <version>${project.version}</version>
                                 </path>
                             </annotationProcessorPaths>

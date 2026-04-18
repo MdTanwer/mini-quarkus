@@ -141,3 +141,13 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Bytecode generation examples and documentation (keep for reference but not in main repo)
+BytecodeGenerationExample.java
+QuarkusStyleBytecodeGenerator.java
+README_BytecodeGeneration.md
+QuarkusBytecodeGenerationPatterns.md
+QUARKUS_STYLE_VALIDATION_REPORT.md
+
+# Integration tests (keep separate)
+integration-tests/

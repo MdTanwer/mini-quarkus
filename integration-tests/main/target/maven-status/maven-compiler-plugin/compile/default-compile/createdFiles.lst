@@ -1,5 +1,10 @@
-com/tanwir/it/GreetingService.class
-com/tanwir/arc/generated/ArcBeanRegistrar_a12c4461.class
+com/tanwir/it/User.class
+META-INF/services/com.tanwir.resteasy.reactive.server.GeneratedRouteRegistrar
+com/tanwir/arc/generated/ArcBeanRegistrar_d7e51321.class
+META-INF/mini-quarkus/application-model.properties
 com/tanwir/it/MainResource.class
+com/tanwir/it/GreetingService.class
+com/tanwir/it/SimpleUserResource.class
+com/tanwir/resteasy/reactive/generated/GeneratedRouteRegistrar_55f992ec.class
 com/tanwir/it/GreetingServiceConfigLoader.class
 META-INF/services/com.tanwir.arc.GeneratedBeanRegistrar

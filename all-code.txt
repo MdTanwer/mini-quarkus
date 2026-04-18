@@ -1,16 +1,3428 @@
-// File: com/tanwir/it/GreetingService.java
+=== CODE SNAPSHOT: 2026-04-18 17:28:03 ===
+
+=== FILE MODIFICATIONS TRACKER ===
+Format: [STATUS] [TIMESTAMP] [FILE_PATH]
+STATUS: MODIFIED=MODIFIED | NEW=NEW | UNCHANGED=
+
+
+=== ./integration-tests/main/src/main/java/com/tanwir/it/GreetingService.java ===
+[FILE] 17:28:03 ./integration-tests/main/src/main/java/com/tanwir/it/GreetingService.java
 package com.tanwir.it;
 
+import com.tanwir.arc.Singleton;
 import com.tanwir.config.ConfigProperty;
 
-public class GreetingService {
+@Singleton
+public final class GreetingService {
 
-    @ConfigProperty(name = "greeting.message", defaultValue = "Hello")
-    String message;
+    @ConfigProperty(name = "greeting.message")
+    public String message;
 
     @ConfigProperty(name = "greeting.count", defaultValue = "1")
-    int count;
+    public int count;
 
     @ConfigProperty(name = "greeting.enabled", defaultValue = "true")
-    boolean enabled;
+    public boolean enabled;
+
+    public String message() {
+        if (!enabled) {
+            return "Greeting service is disabled";
+        }
+        return message + " (count: " + count + ")";
+    }
 }
+
+
+=== ./integration-tests/main/src/main/java/com/tanwir/it/GreetingServiceConfigLoader.java ===
+[FILE] 17:28:03 ./integration-tests/main/src/main/java/com/tanwir/it/GreetingServiceConfigLoader.java
+package com.tanwir.it;
+
+import com.tanwir.config.MiniConfig;
+
+/**
+ * Generated configuration loader for GreetingService
+ */
+public class GreetingServiceConfigLoader {
+    
+    private final MiniConfig config = MiniConfig.getInstance();
+    
+    public void inject(GreetingService target) {
+        try {
+            target.message = config.getValue("greeting.message", "Hello from mini-quarkus configuration!");
+            target.count = config.getIntegerValue("greeting.count", 1);
+            target.enabled = config.getBooleanValue("greeting.enabled", true);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to inject configuration for 'message'", e);
+        }
+    }
+    
+    public static GreetingService createWithConfig(GreetingService target) {
+        GreetingServiceConfigLoader loader = new GreetingServiceConfigLoader();
+        loader.inject(target);
+        return target;
+    }
+}
+
+
+=== ./integration-tests/main/src/main/java/com/tanwir/it/User.java ===
+[FILE] 17:28:03 ./integration-tests/main/src/main/java/com/tanwir/it/User.java
+package com.tanwir.it;
+
+public class User {
+    private Long id;
+    private String name;
+    private String email;
+
+    public User() {}
+
+    public User(Long id, String name, String email) {
+        this.id = id;
+        this.name = name;
+        this.email = email;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+}
+
+
+=== ./integration-tests/main/src/main/java/com/tanwir/it/SimpleUserResource.java ===
+[FILE] 17:28:03 ./integration-tests/main/src/main/java/com/tanwir/it/SimpleUserResource.java
+package com.tanwir.it;
+
+import com.tanwir.arc.Singleton;
+import com.tanwir.resteasy.reactive.server.*;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+
+@Singleton
+@Path("/simple-users")
+public class SimpleUserResource {
+
+    private final Map<Long, User> users = new HashMap<>();
+    private long nextId = 1;
+
+    public SimpleUserResource() {
+        // Initialize with some test data
+        users.put(1L, new User(1L, "John Doe", "john@example.com"));
+        users.put(2L, new User(2L, "Jane Smith", "jane@example.com"));
+        nextId = 3;
+    }
+
+    @GET
+    public List<User> getAllUsers() {
+        return new ArrayList<>(users.values());
+    }
+
+    @GET
+    @Path("/{id}")
+    public User getUser() {
+        return users.get(1L); // Simplified for Phase 3 demo
+    }
+
+    @POST
+    public Response createUser() {
+        User newUser = new User(nextId++, "New User", "new@example.com");
+        users.put(newUser.getId(), newUser);
+        return Response.created(newUser);
+    }
+
+    @PUT
+    @Path("/{id}")
+    public Response updateUser() {
+        User user = users.get(1L);
+        if (user != null) {
+            user.setName("Updated User");
+            return Response.ok(user);
+        }
+        return Response.status(404);
+    }
+
+    @DELETE
+    @Path("/{id}")
+    public Response deleteUser() {
+        if (users.containsKey(1L)) {
+            users.remove(1L);
+            return Response.noContent();
+        }
+        return Response.status(404);
+    }
+
+    @GET
+    @Path("/search")
+    public List<User> searchUsers() {
+        return getAllUsers(); // Simplified for Phase 3 demo
+    }
+
+    @PATCH
+    @Path("/{id}")
+    public Response patchUser() {
+        User user = users.get(1L);
+        if (user != null) {
+            user.setName("Patched User");
+            return Response.ok(user);
+        }
+        return Response.status(404);
+    }
+}
+
+
+=== ./integration-tests/main/src/main/java/com/tanwir/it/MainResource.java ===
+[FILE] 17:28:03 ./integration-tests/main/src/main/java/com/tanwir/it/MainResource.java
+package com.tanwir.it;
+
+import com.tanwir.arc.Inject;
+import com.tanwir.arc.Singleton;
+
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+
+@Singleton
+@Path("/hello")
+public final class MainResource {
+
+    private final GreetingService greetingService;
+
+    @Inject
+    public MainResource(GreetingService greetingService) {
+        this.greetingService = greetingService;
+    }
+
+    @GET
+    public String hello() {
+        return greetingService.message();
+    }
+}
+
+
+=== ./integration-tests/main/target/generated-sources/annotations/com/tanwir/resteasy/reactive/generated/GeneratedRouteRegistrar_55f992ec.java ===
+[FILE] 17:28:03 ./integration-tests/main/target/generated-sources/annotations/com/tanwir/resteasy/reactive/generated/GeneratedRouteRegistrar_55f992ec.java
+package com.tanwir.resteasy.reactive.generated;
+
+public final class GeneratedRouteRegistrar_55f992ec implements com.tanwir.resteasy.reactive.server.GeneratedRouteRegistrar {
+    @Override
+    public void register(com.tanwir.resteasy.reactive.server.RouteRegistrar registrar) {
+        registrar.registerGet("/hello", "com.tanwir.it.MainResource#hello", com.tanwir.it.MainResource.class, (resource, request, pathParams, queryParams, body) -> {
+    // Simple parameter extraction for Phase 3
+    try {
+        return (Object) resource.hello();
+    } catch (Exception e) {
+        throw new RuntimeException("Method invocation failed", e);
+    }
+});
+        registrar.registerPost("/simple-users", "com.tanwir.it.SimpleUserResource#createUser", com.tanwir.it.SimpleUserResource.class, (resource, request, pathParams, queryParams, body) -> {
+    // Simple parameter extraction for Phase 3
+    try {
+        return (Object) resource.createUser();
+    } catch (Exception e) {
+        throw new RuntimeException("Method invocation failed", e);
+    }
+});
+        registrar.registerDelete("/simple-users/{id}", "com.tanwir.it.SimpleUserResource#deleteUser", com.tanwir.it.SimpleUserResource.class, (resource, request, pathParams, queryParams, body) -> {
+    // Simple parameter extraction for Phase 3
+    try {
+        return (Object) resource.deleteUser();
+    } catch (Exception e) {
+        throw new RuntimeException("Method invocation failed", e);
+    }
+});
+        registrar.registerGet("/simple-users", "com.tanwir.it.SimpleUserResource#getAllUsers", com.tanwir.it.SimpleUserResource.class, (resource, request, pathParams, queryParams, body) -> {
+    // Simple parameter extraction for Phase 3
+    try {
+        return (Object) resource.getAllUsers();
+    } catch (Exception e) {
+        throw new RuntimeException("Method invocation failed", e);
+    }
+});
+        registrar.registerGet("/simple-users/{id}", "com.tanwir.it.SimpleUserResource#getUser", com.tanwir.it.SimpleUserResource.class, (resource, request, pathParams, queryParams, body) -> {
+    // Simple parameter extraction for Phase 3
+    try {
+        return (Object) resource.getUser();
+    } catch (Exception e) {
+        throw new RuntimeException("Method invocation failed", e);
+    }
+});
+        registrar.registerPatch("/simple-users/{id}", "com.tanwir.it.SimpleUserResource#patchUser", com.tanwir.it.SimpleUserResource.class, (resource, request, pathParams, queryParams, body) -> {
+    // Simple parameter extraction for Phase 3
+    try {
+        return (Object) resource.patchUser();
+    } catch (Exception e) {
+        throw new RuntimeException("Method invocation failed", e);
+    }
+});
+        registrar.registerGet("/simple-users/search", "com.tanwir.it.SimpleUserResource#searchUsers", com.tanwir.it.SimpleUserResource.class, (resource, request, pathParams, queryParams, body) -> {
+    // Simple parameter extraction for Phase 3
+    try {
+        return (Object) resource.searchUsers();
+    } catch (Exception e) {
+        throw new RuntimeException("Method invocation failed", e);
+    }
+});
+        registrar.registerPut("/simple-users/{id}", "com.tanwir.it.SimpleUserResource#updateUser", com.tanwir.it.SimpleUserResource.class, (resource, request, pathParams, queryParams, body) -> {
+    // Simple parameter extraction for Phase 3
+    try {
+        return (Object) resource.updateUser();
+    } catch (Exception e) {
+        throw new RuntimeException("Method invocation failed", e);
+    }
+});
+    }
+}
+
+
+=== ./integration-tests/main/target/generated-sources/annotations/com/tanwir/arc/generated/ArcBeanRegistrar_d7e51321.java ===
+[FILE] 17:28:03 ./integration-tests/main/target/generated-sources/annotations/com/tanwir/arc/generated/ArcBeanRegistrar_d7e51321.java
+package com.tanwir.arc.generated;
+
+import com.tanwir.arc.BeanDescriptor;
+import com.tanwir.arc.Scope;
+import java.util.Set;
+
+public final class ArcBeanRegistrar_d7e51321 implements com.tanwir.arc.GeneratedBeanRegistrar {
+    @Override
+    public void register(com.tanwir.arc.BeanRegistrar beanRegistrar) {
+        beanRegistrar.register(new BeanDescriptor<>(
+            com.tanwir.it.GreetingService.class,
+            Scope.SINGLETON,
+            container -> {
+                com.tanwir.it.GreetingService instance = new com.tanwir.it.GreetingService();
+                try {
+                    Class<?> configLoaderClass = Class.forName("com.tanwir.it.GreetingServiceConfigLoader");
+                    Object configLoader = configLoaderClass.getDeclaredConstructor().newInstance();
+                    configLoaderClass.getMethod("inject", com.tanwir.it.GreetingService.class).invoke(configLoader, instance);
+                } catch (Exception e) {
+                    // No config loader found or injection failed, that's okay
+                }
+                return instance;
+            },
+            null,
+            null,
+            Set.of()));
+        beanRegistrar.register(new BeanDescriptor<>(
+            com.tanwir.it.MainResource.class,
+            Scope.SINGLETON,
+            container -> {
+                com.tanwir.it.MainResource instance = new com.tanwir.it.MainResource(container.instance(com.tanwir.it.GreetingService.class).get());
+                try {
+                    Class<?> configLoaderClass = Class.forName("com.tanwir.it.MainResourceConfigLoader");
+                    Object configLoader = configLoaderClass.getDeclaredConstructor().newInstance();
+                    configLoaderClass.getMethod("inject", com.tanwir.it.MainResource.class).invoke(configLoader, instance);
+                } catch (Exception e) {
+                    // No config loader found or injection failed, that's okay
+                }
+                return instance;
+            },
+            null,
+            null,
+            Set.of()));
+        beanRegistrar.register(new BeanDescriptor<>(
+            com.tanwir.it.SimpleUserResource.class,
+            Scope.SINGLETON,
+            container -> {
+                com.tanwir.it.SimpleUserResource instance = new com.tanwir.it.SimpleUserResource();
+                try {
+                    Class<?> configLoaderClass = Class.forName("com.tanwir.it.SimpleUserResourceConfigLoader");
+                    Object configLoader = configLoaderClass.getDeclaredConstructor().newInstance();
+                    configLoaderClass.getMethod("inject", com.tanwir.it.SimpleUserResource.class).invoke(configLoader, instance);
+                } catch (Exception e) {
+                    // No config loader found or injection failed, that's okay
+                }
+                return instance;
+            },
+            null,
+            null,
+            Set.of()));
+    }
+}
+
+
+=== ./extensions/arc/src/main/java/com/tanwir/arc/ArcExtensionMarker.java ===
+[FILE] 17:28:03 ./extensions/arc/src/main/java/com/tanwir/arc/ArcExtensionMarker.java
+package com.tanwir.arc;
+
+public final class ArcExtensionMarker {
+
+    private ArcExtensionMarker() {
+    }
+
+    public static String name() {
+        return "mini-quarkus-arc";
+    }
+}
+
+
+=== ./extensions/resteasy-reactive/src/main/java/com/tanwir/resteasy/reactive/ResteasyReactiveExtensionMarker.java ===
+[FILE] 17:28:03 ./extensions/resteasy-reactive/src/main/java/com/tanwir/resteasy/reactive/ResteasyReactiveExtensionMarker.java
+package com.tanwir.resteasy.reactive;
+
+public final class ResteasyReactiveExtensionMarker {
+
+    private ResteasyReactiveExtensionMarker() {
+    }
+
+    public static String name() {
+        return "mini-quarkus-resteasy-reactive";
+    }
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/PostConstruct.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/PostConstruct.java
+package com.tanwir.arc;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface PostConstruct {}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/BeanDescriptor.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/BeanDescriptor.java
+package com.tanwir.arc;
+
+import java.util.Set;
+
+public final class BeanDescriptor<T> {
+    private final Class<T> beanClass;
+    private final Scope scope;
+    private final BeanFactory<T> factory;
+    private final String postConstructMethod;  // null if none
+    private final String preDestroyMethod;     // null if none
+    private final Set<Class<?>> qualifiers;    // empty if none
+
+    public BeanDescriptor(Class<T> beanClass, Scope scope, BeanFactory<T> factory, 
+                          String postConstructMethod, String preDestroyMethod, 
+                          Set<Class<?>> qualifiers) {
+        this.beanClass = beanClass;
+        this.scope = scope;
+        this.factory = factory;
+        this.postConstructMethod = postConstructMethod;
+        this.preDestroyMethod = preDestroyMethod;
+        this.qualifiers = qualifiers;
+    }
+
+    public Class<T> beanClass() {
+        return beanClass;
+    }
+
+    public Scope scope() {
+        return scope;
+    }
+
+    public BeanFactory<T> factory() {
+        return factory;
+    }
+
+    public String postConstructMethod() {
+        return postConstructMethod;
+    }
+
+    public String preDestroyMethod() {
+        return preDestroyMethod;
+    }
+
+    public Set<Class<?>> qualifiers() {
+        return qualifiers;
+    }
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/SingletonContext.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/SingletonContext.java
+package com.tanwir.arc.context;
+
+import com.tanwir.arc.ArcContainer;
+import com.tanwir.arc.BeanDescriptor;
+import com.tanwir.arc.Scope;
+
+import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class SingletonContext implements ScopeContext {
+    private final Map<Class<?>, ContextInstance> instances = new ConcurrentHashMap<>();
+
+    @Override
+    public Scope scope() {
+        return Scope.SINGLETON;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T getOrCreate(BeanDescriptor<T> descriptor, ArcContainer container) {
+        return (T) instances.computeIfAbsent(descriptor.beanClass(), k -> {
+            T instance = descriptor.factory().create(container);
+            invokePostConstruct(instance, descriptor);
+            return new ContextInstance(descriptor, instance);
+        }).instance();
+    }
+
+    @Override
+    public void destroy() {
+        for (ContextInstance instance : instances.values()) {
+            invokePreDestroy(instance.instance(), instance.descriptor());
+        }
+        instances.clear();
+    }
+
+    @Override
+    public boolean isActive() {
+        return true; // Singleton context is always active
+    }
+
+    private void invokePostConstruct(Object instance, BeanDescriptor<?> descriptor) {
+        if (descriptor.postConstructMethod() != null) {
+            try {
+                Method method = instance.getClass().getMethod(descriptor.postConstructMethod());
+                method.setAccessible(true);
+                method.invoke(instance);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to invoke @PostConstruct method", e);
+            }
+        }
+    }
+
+    private void invokePreDestroy(Object instance, BeanDescriptor<?> descriptor) {
+        if (descriptor.preDestroyMethod() == null) {
+            return;
+        }
+        try {
+            Method method = instance.getClass().getMethod(descriptor.preDestroyMethod());
+            method.setAccessible(true);
+            method.invoke(instance);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to invoke @PreDestroy method", e);
+        }
+    }
+
+    private record ContextInstance(BeanDescriptor<?> descriptor, Object instance) {
+    }
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/DependentContext.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/DependentContext.java
+package com.tanwir.arc.context;
+
+import com.tanwir.arc.ArcContainer;
+import com.tanwir.arc.BeanDescriptor;
+import com.tanwir.arc.Scope;
+
+import java.lang.reflect.Method;
+
+public class DependentContext implements ScopeContext {
+    @Override
+    public Scope scope() {
+        return Scope.DEPENDENT;
+    }
+
+    @Override
+    public <T> T getOrCreate(BeanDescriptor<T> descriptor, ArcContainer container) {
+        T instance = descriptor.factory().create(container);
+        invokePostConstruct(instance, descriptor);
+        return instance;
+    }
+
+    @Override
+    public void destroy() {
+        // Dependent context doesn't store instances, so nothing to destroy
+    }
+
+    @Override
+    public boolean isActive() {
+        return true; // Dependent context is always active
+    }
+
+    private void invokePostConstruct(Object instance, BeanDescriptor<?> descriptor) {
+        if (descriptor.postConstructMethod() != null) {
+            try {
+                Method method = instance.getClass().getMethod(descriptor.postConstructMethod());
+                method.setAccessible(true);
+                method.invoke(instance);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to invoke @PostConstruct method", e);
+            }
+        }
+    }
+
+    public void destroyInstance(Object instance) {
+        invokePreDestroy(instance);
+    }
+
+    private void invokePreDestroy(Object instance) {
+        for (Method method : instance.getClass().getMethods()) {
+            if (method.isAnnotationPresent(com.tanwir.arc.PreDestroy.class)) {
+                try {
+                    method.setAccessible(true);
+                    method.invoke(instance);
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to invoke @PreDestroy method", e);
+                }
+            }
+        }
+    }
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/ApplicationContext.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/ApplicationContext.java
+package com.tanwir.arc.context;
+
+import com.tanwir.arc.ArcContainer;
+import com.tanwir.arc.BeanDescriptor;
+import com.tanwir.arc.Scope;
+
+import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class ApplicationContext implements ScopeContext {
+    private final Map<Class<?>, ContextInstance> instances = new ConcurrentHashMap<>();
+
+    @Override
+    public Scope scope() {
+        return Scope.APPLICATION;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T getOrCreate(BeanDescriptor<T> descriptor, ArcContainer container) {
+        return (T) instances.computeIfAbsent(descriptor.beanClass(), k -> {
+            T instance = descriptor.factory().create(container);
+            invokePostConstruct(instance, descriptor);
+            return new ContextInstance(descriptor, instance);
+        }).instance();
+    }
+
+    @Override
+    public void destroy() {
+        for (ContextInstance instance : instances.values()) {
+            invokePreDestroy(instance.instance(), instance.descriptor());
+        }
+        instances.clear();
+    }
+
+    @Override
+    public boolean isActive() {
+        return true; // Application context is always active once initialized
+    }
+
+    private void invokePostConstruct(Object instance, BeanDescriptor<?> descriptor) {
+        if (descriptor.postConstructMethod() != null) {
+            try {
+                Method method = instance.getClass().getMethod(descriptor.postConstructMethod());
+                method.setAccessible(true);
+                method.invoke(instance);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to invoke @PostConstruct method", e);
+            }
+        }
+    }
+
+    private void invokePreDestroy(Object instance, BeanDescriptor<?> descriptor) {
+        if (descriptor.preDestroyMethod() == null) {
+            return;
+        }
+        try {
+            Method method = instance.getClass().getMethod(descriptor.preDestroyMethod());
+            method.setAccessible(true);
+            method.invoke(instance);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to invoke @PreDestroy method", e);
+        }
+    }
+
+    private record ContextInstance(BeanDescriptor<?> descriptor, Object instance) {
+    }
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/RequestContextController.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/RequestContextController.java
+package com.tanwir.arc.context;
+
+public class RequestContextController {
+    private final RequestContext requestContext;
+
+    public RequestContextController(RequestContext requestContext) {
+        this.requestContext = requestContext;
+    }
+
+    public void activate() {
+        requestContext.activate();
+    }
+
+    public void deactivate() {
+        requestContext.deactivate();
+    }
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/ScopeContext.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/ScopeContext.java
+package com.tanwir.arc.context;
+
+import com.tanwir.arc.ArcContainer;
+import com.tanwir.arc.BeanDescriptor;
+import com.tanwir.arc.Scope;
+
+public interface ScopeContext {
+    Scope scope();
+    <T> T getOrCreate(BeanDescriptor<T> descriptor, ArcContainer container);
+    void destroy();   // called on scope end — triggers @PreDestroy
+    boolean isActive(); 
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/RequestContext.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/context/RequestContext.java
+package com.tanwir.arc.context;
+
+import com.tanwir.arc.ArcContainer;
+import com.tanwir.arc.BeanDescriptor;
+import com.tanwir.arc.Scope;
+
+import java.lang.reflect.Method;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+public class RequestContext implements ScopeContext {
+    private final ThreadLocal<Map<Class<?>, ContextInstance>> requestInstances = new ThreadLocal<>();
+
+    @Override
+    public Scope scope() {
+        return Scope.REQUEST;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> T getOrCreate(BeanDescriptor<T> descriptor, ArcContainer container) {
+        if (!isActive()) {
+            throw new IllegalStateException("Request context is not active");
+        }
+        return (T) requestInstances.get().computeIfAbsent(descriptor.beanClass(), k -> {
+            T instance = descriptor.factory().create(container);
+            invokePostConstruct(instance, descriptor);
+            return new ContextInstance(descriptor, instance);
+        }).instance();
+    }
+
+    @Override
+    public void destroy() {
+        Map<Class<?>, ContextInstance> instances = requestInstances.get();
+        if (instances == null) {
+            return;
+        }
+        for (ContextInstance contextInstance : instances.values()) {
+            invokePreDestroy(contextInstance.instance(), contextInstance.descriptor());
+        }
+        instances.clear();
+        requestInstances.remove();
+    }
+
+    @Override
+    public boolean isActive() {
+        return requestInstances.get() != null;
+    }
+
+    public void activate() {
+        if (!isActive()) {
+            requestInstances.set(new ConcurrentHashMap<>());
+        }
+    }
+
+    public void deactivate() {
+        destroy();
+    }
+
+    private void invokePostConstruct(Object instance, BeanDescriptor<?> descriptor) {
+        if (descriptor.postConstructMethod() != null) {
+            try {
+                Method method = instance.getClass().getMethod(descriptor.postConstructMethod());
+                method.setAccessible(true);
+                method.invoke(instance);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to invoke @PostConstruct method", e);
+            }
+        }
+    }
+
+    private void invokePreDestroy(Object instance, BeanDescriptor<?> descriptor) {
+        if (descriptor.preDestroyMethod() == null) {
+            return;
+        }
+        try {
+            Method method = instance.getClass().getMethod(descriptor.preDestroyMethod());
+            method.setAccessible(true);
+            method.invoke(instance);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to invoke @PreDestroy method", e);
+        }
+    }
+
+    private record ContextInstance(BeanDescriptor<?> descriptor, Object instance) {
+    }
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/BeanFactory.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/BeanFactory.java
+package com.tanwir.arc;
+
+@FunctionalInterface
+public interface BeanFactory<T> {
+
+    T create(ArcContainer container);
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/InstanceHandle.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/InstanceHandle.java
+package com.tanwir.arc;
+
+public interface InstanceHandle<T> extends AutoCloseable {
+
+    T get();
+    
+    @Override
+    void close();  // no longer default no-op — implementations handle @PreDestroy
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Inject.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Inject.java
+package com.tanwir.arc;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.CONSTRUCTOR)
+public @interface Inject {
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/GeneratedBeanRegistrar.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/GeneratedBeanRegistrar.java
+package com.tanwir.arc;
+
+public interface GeneratedBeanRegistrar {
+
+    void register(BeanRegistrar beanRegistrar);
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/SimpleArcContainer.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/SimpleArcContainer.java
+package com.tanwir.arc;
+
+import com.tanwir.arc.context.ApplicationContext;
+import com.tanwir.arc.context.DependentContext;
+import com.tanwir.arc.context.RequestContext;
+import com.tanwir.arc.context.RequestContextController;
+import com.tanwir.arc.context.SingletonContext;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+final class SimpleArcContainer implements ArcContainer, BeanRegistrar {
+
+    // One map: type → descriptor (replaces both factories + singletons maps)
+    private final Map<Class<?>, BeanDescriptor<?>> descriptors = new ConcurrentHashMap<>();
+    
+    // One context per scope
+    private final SingletonContext singletonContext = new SingletonContext();
+    private final ApplicationContext applicationContext = new ApplicationContext();
+    private final RequestContext requestContext = new RequestContext();
+    private final DependentContext dependentContext = new DependentContext();
+    
+    // Qualifier-aware lookup: Map<Class<?>, List<BeanDescriptor<?>>>
+    // for when multiple beans of same type exist, differentiated by qualifier
+    private final Map<Class<?>, List<BeanDescriptor<?>>> byType = new ConcurrentHashMap<>();
+    
+    private final ThreadLocal<Deque<Class<?>>> creationStack = ThreadLocal.withInitial(ArrayDeque::new);
+    private final RequestContextController requestContextController = new RequestContextController(requestContext);
+
+    <T> void registerReflectiveSingleton(Class<T> beanType) {
+        registerReflectiveBean(beanType);
+    }
+
+    <T> void registerReflectiveBean(Class<T> beanType) {
+        Scope scope = determineScope(beanType);
+        Constructor<T> constructor = selectConstructor(beanType);
+        Method postConstructMethod = findLifecycleMethod(beanType, PostConstruct.class);
+        Method preDestroyMethod = findLifecycleMethod(beanType, PreDestroy.class);
+        Set<Class<?>> qualifiers = findQualifiers(beanType);
+
+        BeanDescriptor<T> descriptor = new BeanDescriptor<>(
+                beanType,
+                scope,
+                container -> create(beanType, constructor, container),
+                postConstructMethod != null ? postConstructMethod.getName() : null,
+                preDestroyMethod != null ? preDestroyMethod.getName() : null,
+                qualifiers);
+        register(descriptor);
+    }
+
+    private static <T> Scope determineScope(Class<T> beanType) {
+        List<Scope> scopes = new ArrayList<>();
+        if (beanType.isAnnotationPresent(Singleton.class)) {
+            scopes.add(Scope.SINGLETON);
+        }
+        if (beanType.isAnnotationPresent(ApplicationScoped.class)) {
+            scopes.add(Scope.APPLICATION);
+        }
+        if (beanType.isAnnotationPresent(RequestScoped.class)) {
+            scopes.add(Scope.REQUEST);
+        }
+        if (beanType.isAnnotationPresent(Dependent.class)) {
+            scopes.add(Scope.DEPENDENT);
+        }
+        if (scopes.isEmpty()) {
+            throw new IllegalArgumentException(beanType.getName() + " must declare one bean scope");
+        }
+        if (scopes.size() > 1) {
+            throw new IllegalArgumentException(beanType.getName() + " declares multiple bean scopes");
+        }
+        return scopes.get(0);
+    }
+
+    @Override
+    public <T> void register(BeanDescriptor<T> descriptor) {
+        BeanDescriptor<?> previous = descriptors.putIfAbsent(descriptor.beanClass(), descriptor);
+        if (previous != null) {
+            throw new IllegalStateException("A bean descriptor is already registered for " + descriptor.beanClass().getName());
+        }
+
+        for (Class<?> exposedType : beanTypes(descriptor.beanClass())) {
+            byType.computeIfAbsent(exposedType, k -> new ArrayList<>()).add(descriptor);
+        }
+    }
+
+    @Override
+    public <T> InstanceHandle<T> instance(Class<T> type) {
+        return instance(type, null);
+    }
+
+    public <T> InstanceHandle<T> instance(Class<T> type, Class<? extends Annotation> qualifier) {
+        BeanDescriptor<T> descriptor = findDescriptor(type, qualifier);
+        if (descriptor == null) {
+            throw new IllegalStateException("No bean registered for " + type.getName() + 
+                (qualifier != null ? " with qualifier " + qualifier.getName() : ""));
+        }
+        
+        T instance = getOrCreate(descriptor);
+        return new SimpleInstanceHandle<>(instance, descriptor);
+    }
+
+    public RequestContextController requestContextController() {
+        return requestContextController;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T getOrCreate(BeanDescriptor<T> descriptor) {
+        Deque<Class<?>> stack = creationStack.get();
+        if (stack.contains(descriptor.beanClass())) {
+            throw new IllegalStateException("Circular dependency detected: " + formatCircularDependency(stack, descriptor.beanClass()));
+        }
+        stack.push(descriptor.beanClass());
+        try {
+            return switch (descriptor.scope()) {
+                case SINGLETON -> singletonContext.getOrCreate(descriptor, this);
+                case APPLICATION -> applicationContext.getOrCreate(descriptor, this);
+                case REQUEST -> requestContext.getOrCreate(descriptor, this);
+                case DEPENDENT -> dependentContext.getOrCreate(descriptor, this);
+            };
+        } finally {
+            stack.pop();
+            if (stack.isEmpty()) {
+                creationStack.remove();
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> BeanDescriptor<T> findDescriptor(Class<T> type, Class<? extends Annotation> qualifier) {
+        List<BeanDescriptor<?>> candidates = byType.get(type);
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+
+        if (qualifier != null) {
+            List<BeanDescriptor<?>> qualifiedCandidates = candidates.stream()
+                    .filter(candidate -> candidate.qualifiers().contains(qualifier))
+                    .toList();
+            if (qualifiedCandidates.size() == 1) {
+                return (BeanDescriptor<T>) qualifiedCandidates.get(0);
+            }
+            if (qualifiedCandidates.size() > 1) {
+                throw new IllegalStateException("Multiple beans registered for " + type.getName()
+                        + " with qualifier " + qualifier.getName());
+            }
+            return null;
+        }
+
+        if (candidates.size() == 1) {
+            return (BeanDescriptor<T>) candidates.get(0);
+        }
+
+        List<BeanDescriptor<?>> unqualifiedCandidates = candidates.stream()
+                .filter(candidate -> candidate.qualifiers().isEmpty())
+                .toList();
+        if (unqualifiedCandidates.size() == 1) {
+            return (BeanDescriptor<T>) unqualifiedCandidates.get(0);
+        }
+
+        for (BeanDescriptor<?> candidate : candidates) {
+            if (candidate.beanClass().equals(type)) {
+                return (BeanDescriptor<T>) candidate;
+            }
+        }
+
+        throw new IllegalStateException("Multiple beans registered for " + type.getName()
+                + "; use a qualifier to disambiguate");
+    }
+
+    private static Set<Class<?>> beanTypes(Class<?> beanClass) {
+        Set<Class<?>> types = new LinkedHashSet<>();
+        Class<?> current = beanClass;
+        while (current != null && current != Object.class) {
+            types.add(current);
+            for (Class<?> iface : current.getInterfaces()) {
+                types.add(iface);
+                collectParentInterfaces(iface, types);
+            }
+            current = current.getSuperclass();
+        }
+        return types;
+    }
+
+    private static void collectParentInterfaces(Class<?> iface, Set<Class<?>> types) {
+        for (Class<?> parent : iface.getInterfaces()) {
+            if (types.add(parent)) {
+                collectParentInterfaces(parent, types);
+            }
+        }
+    }
+
+    private static <T> Constructor<T> selectConstructor(Class<T> beanType) {
+        @SuppressWarnings("unchecked")
+        Constructor<T>[] constructors = (Constructor<T>[]) beanType.getDeclaredConstructors();
+        if (constructors.length == 0) {
+            throw new IllegalStateException("No constructor declared for " + beanType.getName());
+        }
+
+        List<Constructor<T>> injectConstructors = new ArrayList<>();
+        for (Constructor<T> constructor : constructors) {
+            if (constructor.isAnnotationPresent(Inject.class)) {
+                injectConstructors.add(constructor);
+            }
+        }
+        if (injectConstructors.size() > 1) {
+            throw new IllegalStateException("Only one constructor can be annotated with @Inject on " + beanType.getName());
+        }
+        if (injectConstructors.size() == 1) {
+            return injectConstructors.get(0);
+        }
+        if (constructors.length == 1) {
+            return constructors[0];
+        }
+
+        try {
+            return beanType.getDeclaredConstructor();
+        } catch (NoSuchMethodException e) {
+            throw new IllegalStateException("Bean must declare exactly one constructor or mark one with @Inject: "
+                    + beanType.getName(), e);
+        }
+    }
+
+    private static Method findLifecycleMethod(Class<?> beanType, Class<? extends Annotation> annotationType) {
+        Method found = null;
+        for (Method method : beanType.getMethods()) {
+            if (!method.isAnnotationPresent(annotationType)) {
+                continue;
+            }
+            if (found != null) {
+                throw new IllegalStateException("Only one method can be annotated with @"
+                        + annotationType.getSimpleName() + " on " + beanType.getName());
+            }
+            if (method.getParameterCount() != 0 || method.getReturnType() != void.class) {
+                throw new IllegalStateException("@" + annotationType.getSimpleName()
+                        + " method must have signature void methodName() on " + beanType.getName());
+            }
+            found = method;
+        }
+        return found;
+    }
+
+    private static Set<Class<?>> findQualifiers(Class<?> beanType) {
+        Set<Class<?>> qualifiers = new LinkedHashSet<>();
+        for (Annotation annotation : beanType.getAnnotations()) {
+            if (annotation.annotationType().isAnnotationPresent(Qualifier.class)) {
+                qualifiers.add(annotation.annotationType());
+            }
+        }
+        return qualifiers;
+    }
+
+    private static Class<? extends Annotation> findQualifier(Parameter parameter) {
+        for (Annotation annotation : parameter.getAnnotations()) {
+            if (annotation.annotationType().isAnnotationPresent(Qualifier.class)) {
+                return annotation.annotationType();
+            }
+        }
+        return null;
+    }
+
+    private static <T> T create(Class<T> type, Constructor<T> constructor, ArcContainer container) {
+        try {
+            constructor.setAccessible(true);
+            if (constructor.getParameterCount() == 0) {
+                return constructor.newInstance();
+            }
+
+            Object[] arguments = new Object[constructor.getParameterCount()];
+            Parameter[] parameters = constructor.getParameters();
+            for (int i = 0; i < parameters.length; i++) {
+                Class<? extends Annotation> qualifier = findQualifier(parameters[i]);
+                arguments[i] = qualifier == null
+                        ? container.instance(parameters[i].getType()).get()
+                        : container.instance(parameters[i].getType(), qualifier).get();
+            }
+            return constructor.newInstance(arguments);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Unable to instantiate bean " + type.getName(), e);
+        }
+    }
+
+    private static void invokePreDestroy(Object instance, BeanDescriptor<?> descriptor) {
+        if (descriptor.preDestroyMethod() == null) {
+            return;
+        }
+        try {
+            Method method = instance.getClass().getMethod(descriptor.preDestroyMethod());
+            method.setAccessible(true);
+            method.invoke(instance);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException("Failed to invoke @PreDestroy method", e);
+        }
+    }
+
+    public void destroyAll() {
+        singletonContext.destroy();
+        applicationContext.destroy();
+        requestContext.destroy();
+        dependentContext.destroy();
+    }
+
+    private static String formatCircularDependency(Deque<Class<?>> stack, Class<?> repeatedType) {
+        StringBuilder message = new StringBuilder();
+        for (Class<?> type : stack) {
+            if (!message.isEmpty()) {
+                message.append(" -> ");
+            }
+            message.append(type.getName());
+        }
+        if (!message.isEmpty()) {
+            message.append(" -> ");
+        }
+        return message.append(repeatedType.getName()).toString();
+    }
+
+    private static final class SimpleInstanceHandle<T> implements InstanceHandle<T> {
+
+        private final T instance;
+        private final BeanDescriptor<T> descriptor;
+
+        private SimpleInstanceHandle(T instance, BeanDescriptor<T> descriptor) {
+            this.instance = instance;
+            this.descriptor = descriptor;
+        }
+
+        @Override
+        public T get() {
+            return instance;
+        }
+
+        @Override
+        public void close() {
+            if (descriptor.scope() == Scope.DEPENDENT) {
+                invokePreDestroy(instance, descriptor);
+            }
+        }
+    }
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Dependent.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Dependent.java
+package com.tanwir.arc;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface Dependent {}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/RequestScoped.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/RequestScoped.java
+package com.tanwir.arc;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface RequestScoped {}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Qualifier.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Qualifier.java
+package com.tanwir.arc;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.ANNOTATION_TYPE)
+public @interface Qualifier {}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Arc.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Arc.java
+package com.tanwir.arc;
+
+import java.util.ServiceLoader;
+
+public final class Arc {
+
+    private static volatile ArcContainer container;
+
+    private Arc() {
+    }
+
+    public static ArcContainer initialize() {
+        SimpleArcContainer initialized = new SimpleArcContainer();
+        int registrars = 0;
+        for (GeneratedBeanRegistrar registrar : ServiceLoader.load(GeneratedBeanRegistrar.class)) {
+            registrar.register(initialized);
+            registrars++;
+        }
+        if (registrars == 0) {
+            throw new IllegalStateException(
+                    "No generated bean registrars found. Add mini-quarkus-arc-processor during compilation.");
+        }
+        container = initialized;
+        return initialized;
+    }
+
+    public static ArcContainer initialize(GeneratedBeanRegistrar... registrars) {
+        if (registrars.length == 0) {
+            throw new IllegalArgumentException("At least one generated bean registrar is required");
+        }
+        SimpleArcContainer initialized = new SimpleArcContainer();
+        for (GeneratedBeanRegistrar registrar : registrars) {
+            registrar.register(initialized);
+        }
+        container = initialized;
+        return initialized;
+    }
+
+    public static ArcContainer initialize(Class<?>... beanTypes) {
+        SimpleArcContainer initialized = new SimpleArcContainer();
+        for (Class<?> beanType : beanTypes) {
+            initialized.registerReflectiveBean(beanType);
+        }
+        container = initialized;
+        return initialized;
+    }
+
+    public static ArcContainer container() {
+        if (container == null) {
+            throw new IllegalStateException("Arc container has not been initialized");
+        }
+        return container;
+    }
+
+    public static void shutdown() {
+        if (container != null) {
+            ((SimpleArcContainer) container).destroyAll();  // triggers @PreDestroy on all scopes
+        }
+        container = null;
+    }
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/ArcContainer.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/ArcContainer.java
+package com.tanwir.arc;
+
+import com.tanwir.arc.context.RequestContextController;
+
+import java.lang.annotation.Annotation;
+
+public interface ArcContainer {
+
+    <T> InstanceHandle<T> instance(Class<T> type);
+    
+    <T> InstanceHandle<T> instance(Class<T> type, Class<? extends Annotation> qualifier);
+    
+    RequestContextController requestContextController();
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Singleton.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Singleton.java
+package com.tanwir.arc;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface Singleton {
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/ApplicationScoped.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/ApplicationScoped.java
+package com.tanwir.arc;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface ApplicationScoped {}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Scope.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/Scope.java
+package com.tanwir.arc;
+
+public enum Scope {
+    SINGLETON,        // one instance, no proxy, eager ok
+    APPLICATION,      // one instance, client proxy, lazy
+    REQUEST,          // one instance per HTTP request
+    DEPENDENT         // new instance every injection
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/BeanRegistrar.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/BeanRegistrar.java
+package com.tanwir.arc;
+
+public interface BeanRegistrar {
+
+    <T> void register(BeanDescriptor<T> descriptor);
+}
+
+
+=== ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/PreDestroy.java ===
+[FILE] 17:28:03 ./independent-projects/arc/runtime/src/main/java/com/tanwir/arc/PreDestroy.java
+package com.tanwir.arc;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface PreDestroy {}
+
+
+=== ./independent-projects/arc/processor/src/main/java/com/tanwir/arc/processor/ArcBeanProcessor.java ===
+[FILE] 17:28:03 ./independent-projects/arc/processor/src/main/java/com/tanwir/arc/processor/ArcBeanProcessor.java
+package com.tanwir.arc.processor;
+
+import com.tanwir.arc.ApplicationScoped;
+import com.tanwir.arc.Dependent;
+import com.tanwir.arc.Inject;
+import com.tanwir.arc.PostConstruct;
+import com.tanwir.arc.PreDestroy;
+import com.tanwir.arc.RequestScoped;
+import com.tanwir.arc.Scope;
+import com.tanwir.arc.Singleton;
+
+import java.io.IOException;
+import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
+import javax.tools.Diagnostic;
+import javax.tools.FileObject;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardLocation;
+
+@SupportedAnnotationTypes({
+    "com.tanwir.arc.Singleton",
+    "com.tanwir.arc.ApplicationScoped",
+    "com.tanwir.arc.RequestScoped",
+    "com.tanwir.arc.Dependent"
+})
+@SupportedSourceVersion(SourceVersion.RELEASE_17)
+public final class ArcBeanProcessor extends AbstractProcessor {
+
+    private static final String GENERATED_PACKAGE = "com.tanwir.arc.generated";
+    private static final String GENERATED_SERVICE = "META-INF/services/com.tanwir.arc.GeneratedBeanRegistrar";
+
+    private final Map<String, BeanDefinition> beans = new TreeMap<>();
+    private boolean generated;
+
+    @Override
+    public synchronized void init(ProcessingEnvironment processingEnv) {
+        super.init(processingEnv);
+    }
+
+    @Override
+    public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        // Process all scope annotations
+        for (Element element : roundEnv.getElementsAnnotatedWith(Singleton.class)) {
+            processScopeElement(element, Scope.SINGLETON);
+        }
+        for (Element element : roundEnv.getElementsAnnotatedWith(ApplicationScoped.class)) {
+            processScopeElement(element, Scope.APPLICATION);
+        }
+        for (Element element : roundEnv.getElementsAnnotatedWith(RequestScoped.class)) {
+            processScopeElement(element, Scope.REQUEST);
+        }
+        for (Element element : roundEnv.getElementsAnnotatedWith(Dependent.class)) {
+            processScopeElement(element, Scope.DEPENDENT);
+        }
+
+        if (!roundEnv.processingOver() || generated || beans.isEmpty()) {
+            return false;
+        }
+
+        generated = true;
+        generateSources();
+        return false;
+    }
+
+    private void processScopeElement(Element element, Scope scope) {
+        if (element.getKind() != ElementKind.CLASS) {
+            error(element, "@" + getScopeAnnotationName(scope) + " can only be used on classes");
+            return;
+        }
+        TypeElement beanType = (TypeElement) element;
+        
+        // Validate only one scope annotation per class
+        validateSingleScope(beanType, scope);
+        
+        BeanDefinition bean = BeanDefinition.create(beanType, scope, processingEnv);
+        if (bean != null) {
+            beans.put(bean.qualifiedName, bean);
+        }
+    }
+
+    private void validateSingleScope(TypeElement beanType, Scope currentScope) {
+        int scopeCount = 0;
+        if (beanType.getAnnotation(Singleton.class) != null) scopeCount++;
+        if (beanType.getAnnotation(ApplicationScoped.class) != null) scopeCount++;
+        if (beanType.getAnnotation(RequestScoped.class) != null) scopeCount++;
+        if (beanType.getAnnotation(Dependent.class) != null) scopeCount++;
+        
+        if (scopeCount > 1) {
+            error(beanType, "Only one scope annotation is allowed per class. Found multiple scope annotations.");
+        }
+    }
+
+    private String getScopeAnnotationName(Scope scope) {
+        return switch (scope) {
+            case SINGLETON -> "Singleton";
+            case APPLICATION -> "ApplicationScoped";
+            case REQUEST -> "RequestScoped";
+            case DEPENDENT -> "Dependent";
+        };
+    }
+
+    private void generateSources() {
+        String registrarSimpleName = "ArcBeanRegistrar_" + Integer.toHexString(beans.keySet().toString().hashCode());
+        String registrarQualifiedName = GENERATED_PACKAGE + "." + registrarSimpleName;
+        
+        // Generate proxies for @ApplicationScoped beans
+        generateProxies();
+        
+        generateRegistrarSource(registrarSimpleName);
+        generateServiceDescriptor(registrarQualifiedName);
+    }
+
+    private void generateRegistrarSource(String registrarSimpleName) {
+        Filer filer = processingEnv.getFiler();
+        try {
+            JavaFileObject file = filer.createSourceFile(GENERATED_PACKAGE + "." + registrarSimpleName);
+            try (Writer writer = file.openWriter()) {
+                writer.write("package " + GENERATED_PACKAGE + ";\n\n");
+                writer.write("import com.tanwir.arc.BeanDescriptor;\n");
+                writer.write("import com.tanwir.arc.Scope;\n");
+                writer.write("import java.util.Set;\n\n");
+                writer.write("public final class " + registrarSimpleName
+                        + " implements com.tanwir.arc.GeneratedBeanRegistrar {\n");
+                writer.write("    @Override\n");
+                writer.write("    public void register(com.tanwir.arc.BeanRegistrar beanRegistrar) {\n");
+                for (BeanDefinition bean : beans.values()) {
+                    // For @ApplicationScoped beans, register the proxy class
+                    String beanClassName = bean.scope == Scope.APPLICATION ? 
+                        (bean.qualifiedName.substring(0, bean.qualifiedName.lastIndexOf('.')) + "." + 
+                         bean.qualifiedName.substring(bean.qualifiedName.lastIndexOf('.') + 1) + "_Proxy") :
+                        bean.qualifiedName;
+                    
+                    writer.write("        beanRegistrar.register(new BeanDescriptor<>(\n");
+                    writer.write("            " + bean.qualifiedName + ".class,\n"); // Always use original bean class as type
+                    writer.write("            Scope." + bean.scope.name() + ",\n");
+                    writer.write("            container -> {\n");
+                    writer.write("                " + beanClassName + " instance = new " + beanClassName + "(");
+                    for (int i = 0; i < bean.constructorParameters.size(); i++) {
+                        if (i > 0) {
+                            writer.write(", ");
+                        }
+                        writer.write("container.instance(" + bean.constructorParameters.get(i) + ".class).get()");
+                    }
+                    writer.write(");\n");
+                    // Inject configuration if the bean has @ConfigProperty fields
+                    writer.write("                try {\n");
+                    writer.write("                    Class<?> configLoaderClass = Class.forName(\"" + bean.qualifiedName + "ConfigLoader\");\n");
+                    writer.write("                    Object configLoader = configLoaderClass.getDeclaredConstructor().newInstance();\n");
+                    writer.write("                    configLoaderClass.getMethod(\"inject\", " + bean.qualifiedName + ".class).invoke(configLoader, instance);\n");
+                    writer.write("                } catch (Exception e) {\n");
+                    writer.write("                    // No config loader found or injection failed, that's okay\n");
+                    writer.write("                }\n");
+                    writer.write("                return instance;\n");
+                    writer.write("            },\n");
+                    writer.write("            " + (bean.postConstructMethod != null ? "\"" + bean.postConstructMethod + "\"" : "null") + ",\n");
+                    writer.write("            " + (bean.preDestroyMethod != null ? "\"" + bean.preDestroyMethod + "\"" : "null") + ",\n");
+                    writer.write("            Set.of(");
+                    if (bean.qualifiers.isEmpty()) {
+                        writer.write(")");
+                    } else {
+                        for (int i = 0; i < bean.qualifiers.size(); i++) {
+                            if (i > 0) writer.write(", ");
+                            writer.write(bean.qualifiers.get(i) + ".class");
+                        }
+                        writer.write(")");
+                    }
+                    writer.write("));\n");
+                }
+                writer.write("    }\n");
+                writer.write("}\n");
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to generate ArC bean registrar", e);
+        }
+    }
+
+    private void generateProxies() {
+        for (BeanDefinition bean : beans.values()) {
+            if (bean.scope == Scope.APPLICATION) {
+                generateProxy(bean);
+            }
+        }
+    }
+
+    private void generateProxy(BeanDefinition bean) {
+        Filer filer = processingEnv.getFiler();
+        String proxySimpleName = bean.qualifiedName.substring(bean.qualifiedName.lastIndexOf('.') + 1) + "_Proxy";
+        String proxyPackage = bean.qualifiedName.substring(0, bean.qualifiedName.lastIndexOf('.'));
+        String proxyQualifiedName = proxyPackage + "." + proxySimpleName;
+        
+        try {
+            JavaFileObject file = filer.createSourceFile(proxyQualifiedName);
+            try (Writer writer = file.openWriter()) {
+                writer.write("package " + proxyPackage + ";\n\n");
+                writer.write("// Generated proxy for: @" + bean.scope.name().toLowerCase() + " " + bean.qualifiedName + "\n");
+                writer.write("public final class " + proxySimpleName + " extends " + bean.qualifiedName + " {\n");
+                writer.write("    public " + proxySimpleName + "(");
+                for (int i = 0; i < bean.constructorParameters.size(); i++) {
+                    if (i > 0) {
+                        writer.write(", ");
+                    }
+                    writer.write(bean.constructorParameters.get(i) + " arg" + i);
+                }
+                writer.write(") {\n");
+                writer.write("        super(");
+                for (int i = 0; i < bean.constructorParameters.size(); i++) {
+                    if (i > 0) {
+                        writer.write(", ");
+                    }
+                    writer.write("arg" + i);
+                }
+                writer.write(");\n");
+                writer.write("    }\n");
+                writer.write("}\n");
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to generate proxy for " + bean.qualifiedName, e);
+        }
+    }
+
+    private void generateServiceDescriptor(String registrarQualifiedName) {
+        Filer filer = processingEnv.getFiler();
+        try {
+            FileObject file = filer.createResource(StandardLocation.CLASS_OUTPUT, "", GENERATED_SERVICE);
+            try (Writer writer = file.openWriter()) {
+                writer.write(registrarQualifiedName);
+                writer.write("\n");
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to generate ArC service descriptor", e);
+        }
+    }
+
+    private void error(Element element, String message) {
+        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, message, element);
+    }
+
+    private static final class BeanDefinition {
+
+        private final String qualifiedName;
+        private final Scope scope;
+        private final List<String> constructorParameters;
+        private final String postConstructMethod;
+        private final String preDestroyMethod;
+        private final List<String> qualifiers;
+
+        private BeanDefinition(String qualifiedName, Scope scope, List<String> constructorParameters,
+                            String postConstructMethod, String preDestroyMethod, List<String> qualifiers) {
+            this.qualifiedName = qualifiedName;
+            this.scope = scope;
+            this.constructorParameters = constructorParameters;
+            this.postConstructMethod = postConstructMethod;
+            this.preDestroyMethod = preDestroyMethod;
+            this.qualifiers = qualifiers;
+        }
+
+        private static BeanDefinition create(TypeElement beanType, Scope scope, ProcessingEnvironment processingEnv) {
+            if (!beanType.getModifiers().contains(Modifier.PUBLIC)) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "Beans must be public", beanType);
+                return null;
+            }
+            if (beanType.getModifiers().contains(Modifier.ABSTRACT)) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "Beans cannot be abstract", beanType);
+                return null;
+            }
+
+            ConstructorSelection selection = selectConstructor(beanType, processingEnv);
+            if (!selection.valid()) {
+                return null;
+            }
+
+            List<String> parameters = new ArrayList<>();
+            if (selection.constructor() != null) {
+                ExecutableElement constructor = selection.constructor();
+                if (!constructor.getModifiers().contains(Modifier.PUBLIC)) {
+                    processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                            "Injection constructors must be public", constructor);
+                    return null;
+                }
+                for (VariableElement parameter : constructor.getParameters()) {
+                    parameters.add(processingEnv.getTypeUtils().erasure(parameter.asType()).toString());
+                }
+            }
+
+            // Find @PostConstruct and @PreDestroy methods
+            String postConstructMethod = findLifecycleMethod(beanType, PostConstruct.class, processingEnv);
+            String preDestroyMethod = findLifecycleMethod(beanType, PreDestroy.class, processingEnv);
+
+            // Find qualifier annotations
+            List<String> qualifiers = findQualifiers(beanType, processingEnv);
+
+            // Validate @Dependent beans cannot have @PreDestroy invoked by container
+            if (scope == Scope.DEPENDENT && preDestroyMethod != null) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE,
+                        "@Dependent beans cannot have @PreDestroy invoked by container automatically. " +
+                        "@PreDestroy will only be called when InstanceHandle.close() is invoked.", beanType);
+            }
+
+            return new BeanDefinition(beanType.getQualifiedName().toString(), scope, parameters,
+                    postConstructMethod, preDestroyMethod, qualifiers);
+        }
+
+        private static String findLifecycleMethod(TypeElement beanType, Class<? extends java.lang.annotation.Annotation> annotationClass,
+                                              ProcessingEnvironment processingEnv) {
+            List<ExecutableElement> methods = ElementFilter.methodsIn(beanType.getEnclosedElements());
+            List<ExecutableElement> annotatedMethods = methods.stream()
+                    .filter(m -> m.getAnnotation(annotationClass) != null)
+                    .toList();
+
+            if (annotatedMethods.isEmpty()) {
+                return null;
+            }
+
+            if (annotatedMethods.size() > 1) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "Only one method can be annotated with @" + annotationClass.getSimpleName(), beanType);
+                return null;
+            }
+
+            ExecutableElement method = annotatedMethods.get(0);
+            
+            // Validate method signature: public void methodName()
+            if (!method.getModifiers().contains(Modifier.PUBLIC)) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "@" + annotationClass.getSimpleName() + " method must be public", method);
+                return null;
+            }
+            
+            if (!method.getParameters().isEmpty()) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "@" + annotationClass.getSimpleName() + " method must have no parameters", method);
+                return null;
+            }
+            
+            if (!processingEnv.getTypeUtils().isSameType(method.getReturnType(), 
+                    processingEnv.getTypeUtils().getNoType(TypeKind.VOID))) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "@" + annotationClass.getSimpleName() + " method must return void", method);
+                return null;
+            }
+
+            return method.getSimpleName().toString();
+        }
+
+        private static List<String> findQualifiers(TypeElement beanType, ProcessingEnvironment processingEnv) {
+            List<String> qualifiers = new ArrayList<>();
+            for (javax.lang.model.element.AnnotationMirror annotation : beanType.getAnnotationMirrors()) {
+                TypeElement annotationElement = (TypeElement) annotation.getAnnotationType().asElement();
+                if (annotationElement.getAnnotation(com.tanwir.arc.Qualifier.class) != null) {
+                    qualifiers.add(annotationElement.getQualifiedName().toString());
+                }
+            }
+            return qualifiers;
+        }
+
+        private static ConstructorSelection selectConstructor(TypeElement beanType, ProcessingEnvironment processingEnv) {
+            List<ExecutableElement> constructors = new ArrayList<>(ElementFilter.constructorsIn(beanType.getEnclosedElements()));
+            constructors.sort(Comparator.comparing(c -> c.getParameters().size()));
+            if (constructors.isEmpty()) {
+                return ConstructorSelection.valid(null);
+            }
+
+            List<ExecutableElement> injectConstructors = constructors.stream()
+                    .filter(c -> c.getAnnotation(Inject.class) != null)
+                    .toList();
+            if (injectConstructors.size() > 1) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "Only one constructor can be annotated with @Inject", beanType);
+                return ConstructorSelection.invalid();
+            }
+            if (injectConstructors.size() == 1) {
+                return ConstructorSelection.valid(injectConstructors.get(0));
+            }
+            if (constructors.size() == 1) {
+                return ConstructorSelection.valid(constructors.get(0));
+            }
+
+            processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                    "Bean must declare exactly one constructor or mark one with @Inject", beanType);
+            return ConstructorSelection.invalid();
+        }
+
+        private record ConstructorSelection(ExecutableElement constructor, boolean valid) {
+
+            private static ConstructorSelection valid(ExecutableElement constructor) {
+                return new ConstructorSelection(constructor, true);
+            }
+
+            private static ConstructorSelection invalid() {
+                return new ConstructorSelection(null, false);
+            }
+        }
+    }
+}
+
+
+=== ./independent-projects/config/runtime/src/main/java/com/tanwir/config/ConfigProperty.java ===
+[FILE] 17:28:03 ./independent-projects/config/runtime/src/main/java/com/tanwir/config/ConfigProperty.java
+package com.tanwir.config;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+/**
+ * Injection point for configuration properties.
+ * Similar to MicroProfile Config @ConfigProperty.
+ */
+@Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface ConfigProperty {
+    
+    /**
+     * The name of the configuration property.
+     * If not specified, defaults to the field/parameter name.
+     */
+    String name() default "";
+    
+    /**
+     * The default value to use if the property is not found.
+     */
+    String defaultValue() default "";
+}
+
+
+=== ./independent-projects/config/runtime/src/main/java/com/tanwir/config/MiniConfig.java ===
+[FILE] 17:28:03 ./independent-projects/config/runtime/src/main/java/com/tanwir/config/MiniConfig.java
+package com.tanwir.config;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Mini configuration system that loads application.properties.
+ * Similar to SmallRye Config but simplified.
+ */
+public class MiniConfig {
+    
+    private static final MiniConfig INSTANCE = new MiniConfig();
+    private final Properties properties = new Properties();
+    private final Properties profileProperties = new Properties();
+    private final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
+    private String currentProfile = "dev"; // Default profile
+    
+    private MiniConfig() {
+        loadConfiguration();
+    }
+    
+    public static MiniConfig getInstance() {
+        return INSTANCE;
+    }
+    
+    /**
+     * Get a configuration value as a String.
+     */
+    public String getValue(String key) {
+        return getValue(key, null);
+    }
+    
+    /**
+     * Get a configuration value as a String with default.
+     */
+    public String getValue(String key, String defaultValue) {
+        return cache.computeIfAbsent(key, k -> {
+            // Check profile-specific property first (stored with base key in profileProperties)
+            String value = profileProperties.getProperty(key);
+            
+            // Fall back to base property
+            if (value == null) {
+                value = properties.getProperty(key);
+            }
+            
+            // Fall back to default
+            return value != null ? value : defaultValue;
+        });
+    }
+    
+    /**
+     * Get a configuration value as an Integer.
+     */
+    public Integer getIntegerValue(String key) {
+        return getIntegerValue(key, null);
+    }
+    
+    /**
+     * Get a configuration value as an Integer with default.
+     */
+    public Integer getIntegerValue(String key, Integer defaultValue) {
+        String value = getValue(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+    
+    /**
+     * Get a configuration value as a Boolean.
+     */
+    public Boolean getBooleanValue(String key) {
+        return getBooleanValue(key, null);
+    }
+    
+    /**
+     * Get a configuration value as a Boolean with default.
+     */
+    public Boolean getBooleanValue(String key, Boolean defaultValue) {
+        String value = getValue(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return Boolean.parseBoolean(value);
+    }
+    
+    /**
+     * Set the active profile.
+     */
+    public void setProfile(String profile) {
+        this.currentProfile = profile;
+        cache.clear(); // Clear cache to reload with new profile
+        loadProfileProperties(); // Reload profile-specific properties
+    }
+    
+    /**
+     * Get the current active profile.
+     */
+    public String getProfile() {
+        return currentProfile;
+    }
+    
+    private void loadConfiguration() {
+        try (InputStream baseStream = getClass().getClassLoader().getResourceAsStream("application.properties")) {
+            if (baseStream != null) {
+                properties.load(baseStream);
+            }
+        } catch (IOException e) {
+            // application.properties not found, that's okay
+        }
+        
+        loadProfileProperties();
+    }
+    
+    private void loadProfileProperties() {
+        // Clear existing profile properties
+        profileProperties.clear();
+        
+        // Load profile-specific properties from separate file
+        try (InputStream profileStream = getClass().getClassLoader()
+                .getResourceAsStream("application-" + currentProfile + ".properties")) {
+            if (profileStream != null) {
+                profileProperties.load(profileStream);
+            }
+        } catch (IOException e) {
+            // Profile-specific file not found, that's okay
+        }
+        
+        // Also load profile-specific properties from main file with %profile. prefix
+        for (String propertyName : properties.stringPropertyNames()) {
+            if (propertyName.startsWith("%" + currentProfile + ".")) {
+                String baseKey = propertyName.substring(currentProfile.length() + 2);
+                profileProperties.setProperty(baseKey, properties.getProperty(propertyName));
+            }
+        }
+    }
+}
+
+
+=== ./independent-projects/config/processor/src/main/java/com/tanwir/config/processor/ConfigProcessor.java ===
+[FILE] 17:28:03 ./independent-projects/config/processor/src/main/java/com/tanwir/config/processor/ConfigProcessor.java
+package com.tanwir.config.processor;
+
+import com.tanwir.config.ConfigProperty;
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.*;
+import javax.lang.model.type.TypeMirror;
+import javax.tools.Diagnostic;
+import javax.tools.JavaFileObject;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Annotation processor for @ConfigProperty.
+ * Generates configuration injection code at compile time.
+ */
+@SupportedAnnotationTypes("com.tanwir.config.ConfigProperty")
+@SupportedSourceVersion(SourceVersion.RELEASE_17)
+public class ConfigProcessor extends AbstractProcessor {
+    
+    @Override
+    public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        if (roundEnv.processingOver()) {
+            return false;
+        }
+        
+        // Collect all classes that use @ConfigProperty
+        Map<String, List<ConfigInjectionPoint>> configClasses = new HashMap<>();
+        
+        for (Element element : roundEnv.getElementsAnnotatedWith(ConfigProperty.class)) {
+            if (element.getKind() == ElementKind.FIELD) {
+                VariableElement field = (VariableElement) element;
+                TypeElement enclosingClass = (TypeElement) field.getEnclosingElement();
+                
+                ConfigInjectionPoint injectionPoint = new ConfigInjectionPoint(
+                    field.getSimpleName().toString(),
+                    field.asType().toString(),
+                    field.getAnnotation(ConfigProperty.class)
+                );
+                
+                configClasses.computeIfAbsent(
+                    enclosingClass.getQualifiedName().toString(),
+                    k -> new ArrayList<>()
+                ).add(injectionPoint);
+            }
+        }
+        
+        // Generate configuration loader for each class
+        for (Map.Entry<String, List<ConfigInjectionPoint>> entry : configClasses.entrySet()) {
+            generateConfigLoader(entry.getKey(), entry.getValue());
+        }
+        
+        return false;
+    }
+    
+    private void generateConfigLoader(String className, List<ConfigInjectionPoint> injectionPoints) {
+        try {
+            String simpleClassName = className.substring(className.lastIndexOf('.') + 1);
+            String loaderClassName = simpleClassName + "ConfigLoader";
+            String packageName = className.substring(0, className.lastIndexOf('.'));
+            
+            JavaFileObject loaderFile = processingEnv.getFiler()
+                .createSourceFile(packageName + "." + loaderClassName);
+            
+            try (PrintWriter out = new PrintWriter(loaderFile.openWriter())) {
+                generateConfigLoaderClass(out, packageName, loaderClassName, simpleClassName, injectionPoints);
+            }
+        } catch (IOException e) {
+            processingEnv.getMessager().printMessage(
+                Diagnostic.Kind.ERROR,
+                "Failed to generate config loader for " + className + ": " + e.getMessage()
+            );
+        }
+    }
+    
+    private void generateConfigLoaderClass(PrintWriter out, String packageName, 
+                                         String loaderClassName, String targetClassName,
+                                         List<ConfigInjectionPoint> injectionPoints) {
+        
+        out.println("package " + packageName + ";");
+        out.println();
+        out.println("import com.tanwir.config.MiniConfig;");
+        out.println();
+        out.println("/**");
+        out.println(" * Generated configuration loader for " + targetClassName);
+        out.println(" */");
+        out.println("public class " + loaderClassName + " {");
+        out.println();
+        out.println("    private final MiniConfig config = MiniConfig.getInstance();");
+        out.println();
+        
+        // Generate method to inject configuration into target instance
+        out.println("    public void inject(" + targetClassName + " target) {");
+        for (ConfigInjectionPoint injectionPoint : injectionPoints) {
+            String fieldName = injectionPoint.fieldName;
+            String configKey = getConfigKey(injectionPoint);
+            String defaultValue = injectionPoint.annotation.defaultValue();
+            
+            out.println("        try {");
+            out.println("            target." + fieldName + " = " + 
+                        getConversionExpression(injectionPoint, configKey, defaultValue) + ";");
+            out.println("        } catch (Exception e) {");
+            out.println("            throw new RuntimeException(\"Failed to inject configuration for '" + 
+                        fieldName + "'\", e);");
+            out.println("        }");
+            out.println();
+        }
+        out.println("    }");
+        out.println();
+        
+        // Generate static convenience method
+        out.println("    public static " + targetClassName + " createWithConfig(" + targetClassName + " target) {");
+        out.println("        " + loaderClassName + " loader = new " + loaderClassName + "();");
+        out.println("        loader.inject(target);");
+        out.println("        return target;");
+        out.println("    }");
+        out.println("}");
+    }
+    
+    private String getConfigKey(ConfigInjectionPoint injectionPoint) {
+        String name = injectionPoint.annotation.name();
+        return name.isEmpty() ? injectionPoint.fieldName : name;
+    }
+    
+    private String getConversionExpression(ConfigInjectionPoint injectionPoint, 
+                                          String configKey, String defaultValue) {
+        String fieldType = injectionPoint.fieldType;
+        
+        // Handle primitive types and their boxed equivalents
+        if (fieldType.equals("String") || fieldType.equals("java.lang.String")) {
+            if (defaultValue.isEmpty()) {
+                return "config.getValue(\"" + configKey + "\")";
+            } else {
+                return "config.getValue(\"" + configKey + "\", \"" + defaultValue + "\")";
+            }
+        } else if (fieldType.equals("int") || fieldType.equals("java.lang.Integer")) {
+            if (defaultValue.isEmpty()) {
+                return "config.getIntegerValue(\"" + configKey + "\")";
+            } else {
+                return "config.getIntegerValue(\"" + configKey + "\", " + defaultValue + ")";
+            }
+        } else if (fieldType.equals("boolean") || fieldType.equals("java.lang.Boolean")) {
+            if (defaultValue.isEmpty()) {
+                return "config.getBooleanValue(\"" + configKey + "\")";
+            } else {
+                return "config.getBooleanValue(\"" + configKey + "\", " + Boolean.parseBoolean(defaultValue) + ")";
+            }
+        } else {
+            // For other types, use String and let the user handle conversion
+            if (defaultValue.isEmpty()) {
+                return "config.getValue(\"" + configKey + "\")";
+            } else {
+                return "config.getValue(\"" + configKey + "\", \"" + defaultValue + "\")";
+            }
+        }
+    }
+    
+    private static class ConfigInjectionPoint {
+        final String fieldName;
+        final String fieldType;
+        final ConfigProperty annotation;
+        
+        ConfigInjectionPoint(String fieldName, String fieldType, ConfigProperty annotation) {
+            this.fieldName = fieldName;
+            this.fieldType = fieldType;
+            this.annotation = annotation;
+        }
+    }
+}
+
+
+=== ./independent-projects/maven-plugin/src/main/java/com/tanwir/maven/plugin/CreateProjectMojo.java ===
+[FILE] 17:28:03 ./independent-projects/maven-plugin/src/main/java/com/tanwir/maven/plugin/CreateProjectMojo.java
+package com.tanwir.maven.plugin;
+
+import org.apache.maven.plugin.AbstractMojo;
+import org.apache.maven.plugin.MojoExecutionException;
+import org.apache.maven.plugin.MojoFailureException;
+import org.apache.maven.plugins.annotations.*;
+import org.codehaus.plexus.util.FileUtils;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Creates a new Mini Quarkus project from templates
+ */
+@Mojo(name = "create-project", defaultPhase = LifecyclePhase.NONE, requiresDirectInvocation = true)
+public class CreateProjectMojo extends AbstractMojo {
+
+    /**
+     * The project artifactId
+     */
+    @Parameter(property = "artifactId", required = true)
+    private String artifactId;
+
+    /**
+     * The project groupId
+     */
+    @Parameter(property = "groupId", defaultValue = "com.example")
+    private String groupId;
+
+    /**
+     * The project version
+     */
+    @Parameter(property = "version", defaultValue = "1.0.0-SNAPSHOT")
+    private String version;
+
+    /**
+     * The main resource class name
+     */
+    @Parameter(property = "className", defaultValue = "GreetingResource")
+    private String className;
+
+    /**
+     * The package for the resource class
+     */
+    @Parameter(property = "packageName")
+    private String packageName;
+
+    /**
+     * Output directory
+     */
+    @Parameter(defaultValue = "${basedir}", readonly = true)
+    private File outputDirectory;
+
+    public void execute() throws MojoExecutionException, MojoFailureException {
+        getLog().info("Creating Mini Quarkus project: " + artifactId);
+        
+        // Validate inputs
+        validateInputs();
+        
+        // Create project directory
+        Path projectDir = Paths.get(outputDirectory.getAbsolutePath(), artifactId);
+        createProjectDirectory(projectDir);
+        
+        // Generate project structure
+        generateProjectStructure(projectDir);
+        
+        // Generate POM
+        generatePom(projectDir);
+        
+        // Generate source files
+        generateSourceFiles(projectDir);
+        
+        // Generate test files
+        generateTestFiles(projectDir);
+        
+        getLog().info("Mini Quarkus project '" + artifactId + "' created successfully!");
+        getLog().info("Next steps:");
+        getLog().info("  cd " + artifactId);
+        getLog().info("  ./mvnw compile");
+        getLog().info("  ./mvnw package");
+        getLog().info("  java -jar target/" + artifactId + ".jar");
+    }
+
+    private void validateInputs() throws MojoExecutionException {
+        if (artifactId == null || artifactId.trim().isEmpty()) {
+            throw new MojoExecutionException("artifactId is required");
+        }
+        
+        Path projectDir = Paths.get(outputDirectory.getAbsolutePath(), artifactId);
+        if (Files.exists(projectDir)) {
+            throw new MojoExecutionException("Directory '" + artifactId + "' already exists");
+        }
+        
+        if (packageName == null) {
+            packageName = groupId + "." + artifactId.replace("-", "");
+        }
+    }
+
+    private void createProjectDirectory(Path projectDir) throws MojoExecutionException {
+        try {
+            Files.createDirectories(projectDir);
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to create project directory", e);
+        }
+    }
+
+    private void generateProjectStructure(Path projectDir) throws MojoExecutionException {
+        try {
+            // Create Maven directory structure
+            Files.createDirectories(projectDir.resolve("src/main/java/" + packageName.replace('.', '/')));
+            Files.createDirectories(projectDir.resolve("src/main/resources"));
+            Files.createDirectories(projectDir.resolve("src/test/java/" + packageName.replace('.', '/')));
+            Files.createDirectories(projectDir.resolve("src/test/resources"));
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to create project structure", e);
+        }
+    }
+
+    private void generatePom(Path projectDir) throws MojoExecutionException {
+        String pomContent = generatePomContent();
+        Path pomFile = projectDir.resolve("pom.xml");
+        
+        try {
+            Files.writeString(pomFile, pomContent);
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to generate pom.xml", e);
+        }
+    }
+
+    private String generatePomContent() {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<project xmlns=\"http://maven.apache.org/POM/4.0.0\"\n" +
+                "         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
+                "         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0\n" +
+                "         http://maven.apache.org/xsd/maven-4.0.0.xsd\">\n" +
+                "    <modelVersion>4.0.0</modelVersion>\n" +
+                "\n" +
+                "    <groupId>" + groupId + "</groupId>\n" +
+                "    <artifactId>" + artifactId + "</artifactId>\n" +
+                "    <version>" + version + "</version>\n" +
+                "    <packaging>jar</packaging>\n" +
+                "\n" +
+                "    <properties>\n" +
+                "        <maven.compiler.source>17</maven.compiler.source>\n" +
+                "        <maven.compiler.target>17</maven.compiler.target>\n" +
+                "        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n" +
+                "        <mini-quarkus.version>1.0.0-SNAPSHOT</mini-quarkus.version>\n" +
+                "    </properties>\n" +
+                "\n" +
+                "    <dependencies>\n" +
+                "        <dependency>\n" +
+                "            <groupId>com.tanwir</groupId>\n" +
+                "            <artifactId>mini-quarkus-arc</artifactId>\n" +
+                "            <version>${mini-quarkus.version}</version>\n" +
+                "        </dependency>\n" +
+                "        <dependency>\n" +
+                "            <groupId>com.tanwir</groupId>\n" +
+                "            <artifactId>mini-quarkus-resteasy-reactive</artifactId>\n" +
+                "            <version>${mini-quarkus.version}</version>\n" +
+                "        </dependency>\n" +
+                "        <dependency>\n" +
+                "            <groupId>com.tanwir</groupId>\n" +
+                "            <artifactId>mini-quarkus-bootstrap-runner</artifactId>\n" +
+                "            <version>${mini-quarkus.version}</version>\n" +
+                "        </dependency>\n" +
+                "        <dependency>\n" +
+                "            <groupId>org.jboss.logging</groupId>\n" +
+                "            <artifactId>jboss-logging</artifactId>\n" +
+                "            <version>3.5.3.Final</version>\n" +
+                "        </dependency>\n" +
+                "        <dependency>\n" +
+                "            <groupId>io.vertx</groupId>\n" +
+                "            <artifactId>vertx-web</artifactId>\n" +
+                "            <version>4.5.8</version>\n" +
+                "        </dependency>\n" +
+                "    </dependencies>\n" +
+                "\n" +
+                "    <build>\n" +
+                "        <plugins>\n" +
+                "            <plugin>\n" +
+                "                <groupId>org.apache.maven.plugins</groupId>\n" +
+                "                <artifactId>maven-compiler-plugin</artifactId>\n" +
+                "                <version>3.11.0</version>\n" +
+                "                <configuration>\n" +
+                "                    <annotationProcessorPaths>\n" +
+                "                        <path>\n" +
+                "                            <groupId>com.tanwir</groupId>\n" +
+                "                            <artifactId>mini-quarkus-arc-processor</artifactId>\n" +
+                "                            <version>${mini-quarkus.version}</version>\n" +
+                "                        </path>\n" +
+                "                        <path>\n" +
+                "                            <groupId>com.tanwir</groupId>\n" +
+                "                            <artifactId>mini-quarkus-resteasy-reactive-processor</artifactId>\n" +
+                "                            <version>${mini-quarkus.version}</version>\n" +
+                "                        </path>\n" +
+                "                    </annotationProcessorPaths>\n" +
+                "                </configuration>\n" +
+                "            </plugin>\n" +
+                "            <plugin>\n" +
+                "                <groupId>org.apache.maven.plugins</groupId>\n" +
+                "                <artifactId>maven-shade-plugin</artifactId>\n" +
+                "                <version>3.5.1</version>\n" +
+                "                <executions>\n" +
+                "                    <execution>\n" +
+                "                        <phase>package</phase>\n" +
+                "                        <goals>\n" +
+                "                            <goal>shade</goal>\n" +
+                "                        </goals>\n" +
+                "                        <configuration>\n" +
+                "                            <transformers>\n" +
+                "                                <transformer implementation=\"org.apache.maven.plugins.shade.resource.ManifestResourceTransformer\">\n" +
+                "                                    <mainClass>com.tanwir.bootstrap.runner.MiniQuarkusEntryPoint</mainClass>\n" +
+                "                                </transformer>\n" +
+                "                            </transformers>\n" +
+                "                        </configuration>\n" +
+                "                    </execution>\n" +
+                "                </executions>\n" +
+                "            </plugin>\n" +
+                "        </plugins>\n" +
+                "    </build>\n" +
+                "</project>\n";
+    }
+
+    private void generateSourceFiles(Path projectDir) throws MojoExecutionException {
+        // Generate service class
+        generateServiceClass(projectDir);
+        
+        // Generate resource class
+        generateResourceClass(projectDir);
+    }
+
+    private void generateServiceClass(Path projectDir) throws MojoExecutionException {
+        String serviceContent = generateServiceContent();
+        Path serviceFile = projectDir.resolve("src/main/java/" + 
+            packageName.replace('.', '/') + "/GreetingService.java");
+        
+        try {
+            Files.writeString(serviceFile, serviceContent);
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to generate service class", e);
+        }
+    }
+
+    private String generateServiceContent() {
+        return "package " + packageName + ";\n" +
+                "\n" +
+                "import com.tanwir.arc.Singleton;\n" +
+                "\n" +
+                "@Singleton\n" +
+                "public class GreetingService {\n" +
+                "    \n" +
+                "    public String greeting(String name) {\n" +
+                "        return \"Hello, \" + name + \"!\";\n" +
+                "    }\n" +
+                "}\n";
+    }
+
+    private void generateResourceClass(Path projectDir) throws MojoExecutionException {
+        String resourceContent = generateResourceContent();
+        Path resourceFile = projectDir.resolve("src/main/java/" + 
+            packageName.replace('.', '/') + "/" + className + ".java");
+        
+        try {
+            Files.writeString(resourceFile, resourceContent);
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to generate resource class", e);
+        }
+    }
+
+    private String generateResourceContent() {
+        return "package " + packageName + ";\n" +
+                "\n" +
+                "import com.tanwir.arc.Inject;\n" +
+                "import com.tanwir.resteasy.reactive.server.GetInvoker;\n" +
+                "import org.jboss.logging.Logger;\n" +
+                "\n" +
+                "public class " + className + " {\n" +
+                "    \n" +
+                "    private static final Logger LOG = Logger.getLogger(" + className + ".class);\n" +
+                "    \n" +
+                "    @Inject\n" +
+                "    GreetingService greetingService;\n" +
+                "    \n" +
+                "    @GetInvoker(\"/hello\")\n" +
+                "    public String hello() {\n" +
+                "        LOG.info(\"Processing hello request\");\n" +
+                "        return greetingService.greeting(\"Mini Quarkus\");\n" +
+                "    }\n" +
+                "    \n" +
+                "    @GetInvoker(\"/hello/{name}\")\n" +
+                "    public String helloName(String name) {\n" +
+                "        LOG.info(\"Processing hello request for: \" + name);\n" +
+                "        return greetingService.greeting(name);\n" +
+                "    }\n" +
+                "}\n";
+    }
+
+    private void generateTestFiles(Path projectDir) throws MojoExecutionException {
+        String testContent = generateTestContent();
+        Path testFile = projectDir.resolve("src/test/java/" + 
+            packageName.replace('.', '/') + "/" + className + "Test.java");
+        
+        try {
+            Files.writeString(testFile, testContent);
+        } catch (IOException e) {
+            throw new MojoExecutionException("Failed to generate test class", e);
+        }
+    }
+
+    private String generateTestContent() {
+        return "package " + packageName + ";\n" +
+                "\n" +
+                "import org.junit.jupiter.api.Test;\n" +
+                "import static org.junit.jupiter.api.Assertions.*;\n" +
+                "\n" +
+                "public class " + className + "Test {\n" +
+                "    \n" +
+                "    @Test\n" +
+                "    public void testGreetingService() {\n" +
+                "        GreetingService service = new GreetingService();\n" +
+                "        String result = service.greeting(\"World\");\n" +
+                "        assertEquals(\"Hello, World!\", result);\n" +
+                "    }\n" +
+                "}\n";
+    }
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/RouteRegistrar.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/RouteRegistrar.java
+package com.tanwir.resteasy.reactive.server;
+
+public interface RouteRegistrar {
+
+    <T> void registerGet(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker);
+    <T> void registerPost(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker);
+    <T> void registerPut(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker);
+    <T> void registerDelete(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker);
+    <T> void registerPatch(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker);
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/Response.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/Response.java
+package com.tanwir.resteasy.reactive.server;
+
+public class Response {
+    private final int status;
+    private final Object entity;
+    private final String contentType;
+
+    private Response(int status, Object entity, String contentType) {
+        this.status = status;
+        this.entity = entity;
+        this.contentType = contentType;
+    }
+
+    public static Response ok(Object entity) {
+        return new Response(200, entity, "application/json");
+    }
+
+    public static Response ok(Object entity, String contentType) {
+        return new Response(200, entity, contentType);
+    }
+
+    public static Response created(Object entity) {
+        return new Response(201, entity, "application/json");
+    }
+
+    public static Response noContent() {
+        return new Response(204, null, null);
+    }
+
+    public static Response status(int status) {
+        return new Response(status, null, null);
+    }
+
+    public static Response status(int status, Object entity) {
+        return new Response(status, entity, "application/json");
+    }
+
+    public int getStatus() {
+        return status;
+    }
+
+    public Object getEntity() {
+        return entity;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/POST.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/POST.java
+package com.tanwir.resteasy.reactive.server;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface POST {
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/MethodInvoker.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/MethodInvoker.java
+package com.tanwir.resteasy.reactive.server;
+
+import io.vertx.core.http.HttpServerRequest;
+import io.vertx.core.json.JsonObject;
+import java.util.Map;
+
+@FunctionalInterface
+public interface MethodInvoker<T> {
+
+    Object invoke(T resource, HttpServerRequest request, Map<String, String> pathParams, Map<String, String> queryParams, JsonObject body);
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/PATCH.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/PATCH.java
+package com.tanwir.resteasy.reactive.server;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface PATCH {
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/MiniResteasyReactiveServer.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/MiniResteasyReactiveServer.java
+package com.tanwir.resteasy.reactive.server;
+
+import com.tanwir.arc.Arc;
+import com.tanwir.arc.ArcContainer;
+import com.tanwir.arc.context.RequestContextController;
+import com.tanwir.bootstrap.model.MiniApplicationModel;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+
+import java.util.ServiceLoader;
+import java.util.Map;
+import java.util.HashMap;
+
+import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpServer;
+import io.vertx.core.http.HttpServerRequest;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.Router;
+import io.vertx.ext.web.handler.BodyHandler;
+import org.jboss.logging.Logger;
+
+public final class MiniResteasyReactiveServer implements AutoCloseable {
+
+    private static final Logger LOG = Logger.getLogger(MiniResteasyReactiveServer.class);
+
+    private final Vertx vertx;
+    private final HttpServer server;
+    private final boolean ownsArcContainer;
+
+    private MiniResteasyReactiveServer(Vertx vertx, HttpServer server, boolean ownsArcContainer) {
+        this.vertx = vertx;
+        this.server = server;
+        this.ownsArcContainer = ownsArcContainer;
+    }
+
+    public static MiniResteasyReactiveServer start(int port) {
+        return start(port, Arc.initialize(), true);
+    }
+
+    public static MiniResteasyReactiveServer start(MiniApplicationModel applicationModel, int port) {
+        LOG.infof("Bootstrapping %s", applicationModel.applicationName());
+        for (MiniApplicationModel.RouteModel route : applicationModel.getRoutes()) {
+            LOG.infof("application model route -> GET %s (%s)", route.path(), route.operationId());
+        }
+        return start(port, Arc.initialize(), true);
+    }
+
+    public static MiniResteasyReactiveServer start(int port, ArcContainer arcContainer) {
+        return start(port, arcContainer, false);
+    }
+
+    private static MiniResteasyReactiveServer start(int port, ArcContainer arcContainer, boolean ownsArcContainer) {
+        Vertx vertx = Vertx.vertx();
+        Router router = Router.router(vertx);
+        router.route().handler(BodyHandler.create());
+        VertxRouteRegistrar registrar = new VertxRouteRegistrar(router, arcContainer);
+
+        int discoveredRegistrars = 0;
+        for (GeneratedRouteRegistrar generatedRegistrar : ServiceLoader.load(GeneratedRouteRegistrar.class)) {
+            generatedRegistrar.register(registrar);
+            discoveredRegistrars++;
+        }
+
+        if (discoveredRegistrars == 0 || registrar.routeCount() == 0) {
+            vertx.close().toCompletionStage().toCompletableFuture().join();
+            if (ownsArcContainer) {
+                Arc.shutdown();
+            }
+            throw new IllegalStateException(
+                    "No generated GET routes found. Add mini-quarkus-resteasy-reactive-processor during compilation.");
+        }
+
+        HttpServer server = vertx.createHttpServer()
+                .requestHandler(router)
+                .listen(port)
+                .toCompletionStage()
+                .toCompletableFuture()
+                .join();
+
+        LOG.infof("HTTP server listening on port %d with %d GET route(s)", server.actualPort(), registrar.routeCount());
+        return new MiniResteasyReactiveServer(vertx, server, ownsArcContainer);
+    }
+
+    public int port() {
+        return server.actualPort();
+    }
+
+    @Override
+    public void close() {
+        vertx.close().toCompletionStage().toCompletableFuture().join();
+        if (ownsArcContainer) {
+            Arc.shutdown();
+        }
+    }
+
+    private static final class VertxRouteRegistrar implements RouteRegistrar {
+
+        private final Router router;
+        private final ArcContainer arcContainer;
+        private final ObjectMapper objectMapper;
+        private int routeCount;
+
+        private VertxRouteRegistrar(Router router, ArcContainer arcContainer) {
+            this.router = router;
+            this.arcContainer = arcContainer;
+            this.objectMapper = new ObjectMapper();
+            this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+        }
+
+        @Override
+        public <T> void registerGet(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker) {
+            registerRoute("GET", path, operationId, resourceClass, invoker, router::get);
+        }
+
+        @Override
+        public <T> void registerPost(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker) {
+            registerRoute("POST", path, operationId, resourceClass, invoker, router::post);
+        }
+
+        @Override
+        public <T> void registerPut(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker) {
+            registerRoute("PUT", path, operationId, resourceClass, invoker, router::put);
+        }
+
+        @Override
+        public <T> void registerDelete(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker) {
+            registerRoute("DELETE", path, operationId, resourceClass, invoker, router::delete);
+        }
+
+        @Override
+        public <T> void registerPatch(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker) {
+            registerRoute("PATCH", path, operationId, resourceClass, invoker, router::patch);
+        }
+
+        private <T> void registerRoute(String httpMethod, String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker, java.util.function.Function<String, io.vertx.ext.web.Route> routeMethod) {
+            routeCount++;
+            LOG.infof("Registered %s %s -> %s", httpMethod, path, operationId);
+            
+            routeMethod.apply(path).handler(routingContext -> {
+                String requestPath = routingContext.request().path();
+                LOG.infof("%s %s received", httpMethod, requestPath);
+                LOG.infof("matched route -> %s", operationId);
+                
+                RequestContextController rcc = arcContainer.requestContextController();
+                rcc.activate();
+                try {
+                    // Extract path parameters
+                    Map<String, String> pathParams = new HashMap<>();
+                    routingContext.pathParams().forEach(pathParams::put);
+                    
+                    // Extract query parameters
+                    Map<String, String> queryParams = new HashMap<>();
+                    routingContext.queryParams().forEach(param -> queryParams.put(param.getKey(), param.getValue()));
+                    
+                    // Extract request body
+                    JsonObject body = null;
+                    if (routingContext.getBodyAsString() != null && !routingContext.getBodyAsString().isEmpty()) {
+                        body = routingContext.getBodyAsJson();
+                    }
+                    
+                    T resource = arcContainer.instance(resourceClass).get();
+                    LOG.infof("resolved bean -> %s", resourceClass.getName());
+                    
+                    Object result = invoker.invoke(resource, routingContext.request(), pathParams, queryParams, body);
+                    LOG.infof("invoked method -> returned %s", result != null ? result.getClass().getSimpleName() : "null");
+                    
+                    // Handle response
+                    if (result instanceof Response) {
+                        Response response = (Response) result;
+                        sendResponse(routingContext, response.getStatus(), response.getEntity(), response.getContentType());
+                    } else if (result instanceof String) {
+                        sendResponse(routingContext, 200, result, "text/plain");
+                    } else if (result != null) {
+                        sendResponse(routingContext, 200, result, "application/json");
+                    } else {
+                        sendResponse(routingContext, 204, null, null);
+                    }
+                    
+                    LOG.info("response sent -> 200");
+                } catch (Throwable throwable) {
+                    LOG.errorf(throwable, "%s %s failed", httpMethod, requestPath);
+                    routingContext.response()
+                            .setStatusCode(500)
+                            .putHeader("content-type", "application/json")
+                            .end("{\"error\":\"Internal Server Error\",\"message\":\"" + throwable.getMessage() + "\"}");
+                } finally {
+                    rcc.deactivate();  // triggers @PreDestroy on all @RequestScoped beans
+                }
+            });
+        }
+
+        private void sendResponse(io.vertx.ext.web.RoutingContext routingContext, int statusCode, Object entity, String contentType) {
+            if (entity == null) {
+                routingContext.response().setStatusCode(statusCode).end();
+                return;
+            }
+            
+            String responseContent;
+            if (entity instanceof String) {
+                responseContent = (String) entity;
+            } else {
+                try {
+                    responseContent = objectMapper.writeValueAsString(entity);
+                } catch (Exception e) {
+                    LOG.errorf(e, "Failed to serialize response entity");
+                    routingContext.response()
+                            .setStatusCode(500)
+                            .putHeader("content-type", "application/json")
+                            .end("{\"error\":\"Serialization Error\"}");
+                    return;
+                }
+            }
+            
+            routingContext.response()
+                    .setStatusCode(statusCode)
+                    .putHeader("content-type", contentType != null ? contentType : "application/json")
+                    .end(responseContent);
+        }
+
+        private int routeCount() {
+            return routeCount;
+        }
+    }
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/Consumes.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/Consumes.java
+package com.tanwir.resteasy.reactive.server;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target({ElementType.TYPE, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Consumes {
+    String[] value();
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/QueryParam.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/QueryParam.java
+package com.tanwir.resteasy.reactive.server;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.PARAMETER)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface QueryParam {
+    String value();
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/DELETE.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/DELETE.java
+package com.tanwir.resteasy.reactive.server;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface DELETE {
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/GeneratedRouteRegistrar.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/GeneratedRouteRegistrar.java
+package com.tanwir.resteasy.reactive.server;
+
+public interface GeneratedRouteRegistrar {
+
+    void register(RouteRegistrar registrar);
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/Produces.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/Produces.java
+package com.tanwir.resteasy.reactive.server;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target({ElementType.TYPE, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Produces {
+    String[] value();
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/GetInvoker.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/GetInvoker.java
+package com.tanwir.resteasy.reactive.server;
+
+@FunctionalInterface
+public interface GetInvoker<T> {
+
+    String invoke(T resource);
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/Provider.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/Provider.java
+package com.tanwir.resteasy.reactive.server;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target({ElementType.TYPE, ElementType.METHOD})
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Provider {
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/ExceptionMapper.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/ExceptionMapper.java
+package com.tanwir.resteasy.reactive.server;
+
+public interface ExceptionMapper<T extends Throwable> {
+    Response toResponse(T exception);
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/PathParam.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/PathParam.java
+package com.tanwir.resteasy.reactive.server;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.PARAMETER)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface PathParam {
+    String value();
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/PUT.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/runtime/src/main/java/com/tanwir/resteasy/reactive/server/PUT.java
+package com.tanwir.resteasy.reactive.server;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface PUT {
+}
+
+
+=== ./independent-projects/resteasy-reactive/server/processor/src/main/java/com/tanwir/resteasy/reactive/server/processor/MiniResteasyReactiveProcessor.java ===
+[FILE] 17:28:03 ./independent-projects/resteasy-reactive/server/processor/src/main/java/com/tanwir/resteasy/reactive/server/processor/MiniResteasyReactiveProcessor.java
+package com.tanwir.resteasy.reactive.server.processor;
+
+import com.tanwir.arc.Singleton;
+import com.tanwir.bootstrap.model.MiniApplicationModelConstants;
+
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TreeMap;
+
+import javax.annotation.processing.AbstractProcessor;
+import javax.annotation.processing.Filer;
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedOptions;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeKind;
+import javax.tools.Diagnostic;
+import javax.tools.FileObject;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardLocation;
+
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import com.tanwir.resteasy.reactive.server.POST;
+import com.tanwir.resteasy.reactive.server.PUT;
+import com.tanwir.resteasy.reactive.server.DELETE;
+import com.tanwir.resteasy.reactive.server.PATCH;
+import com.tanwir.resteasy.reactive.server.PathParam;
+import com.tanwir.resteasy.reactive.server.QueryParam;
+import com.tanwir.resteasy.reactive.server.Produces;
+import com.tanwir.resteasy.reactive.server.Consumes;
+
+@SupportedAnnotationTypes({
+    "jakarta.ws.rs.GET",
+    "com.tanwir.resteasy.reactive.server.POST",
+    "com.tanwir.resteasy.reactive.server.PUT",
+    "com.tanwir.resteasy.reactive.server.DELETE",
+    "com.tanwir.resteasy.reactive.server.PATCH"
+})
+@SupportedOptions(MiniApplicationModelConstants.OPTION_APPLICATION_NAME)
+@SupportedSourceVersion(SourceVersion.RELEASE_17)
+public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
+
+    private static final String GENERATED_PACKAGE = "com.tanwir.resteasy.reactive.generated";
+    private static final String GENERATED_SERVICE =
+            "META-INF/services/com.tanwir.resteasy.reactive.server.GeneratedRouteRegistrar";
+
+    private final Map<String, RouteDefinition> routes = new TreeMap<>();
+    private boolean generated;
+
+    @Override
+    public synchronized void init(ProcessingEnvironment processingEnv) {
+        super.init(processingEnv);
+    }
+
+    @Override
+    public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        // Process GET methods
+        for (Element element : roundEnv.getElementsAnnotatedWith(GET.class)) {
+            processRoute(element, "GET");
+        }
+        // Process POST methods
+        for (Element element : roundEnv.getElementsAnnotatedWith(POST.class)) {
+            processRoute(element, "POST");
+        }
+        // Process PUT methods
+        for (Element element : roundEnv.getElementsAnnotatedWith(PUT.class)) {
+            processRoute(element, "PUT");
+        }
+        // Process DELETE methods
+        for (Element element : roundEnv.getElementsAnnotatedWith(DELETE.class)) {
+            processRoute(element, "DELETE");
+        }
+        // Process PATCH methods
+        for (Element element : roundEnv.getElementsAnnotatedWith(PATCH.class)) {
+            processRoute(element, "PATCH");
+        }
+
+        if (!roundEnv.processingOver() || generated || routes.isEmpty()) {
+            return false;
+        }
+
+        generated = true;
+        generateSources();
+        return false;
+    }
+
+    private void generateSources() {
+        String registrarSimpleName = "GeneratedRouteRegistrar_" + Integer.toHexString(routes.keySet().toString().hashCode());
+        String registrarQualifiedName = GENERATED_PACKAGE + "." + registrarSimpleName;
+        generateRegistrarSource(registrarSimpleName);
+        generateServiceDescriptor(registrarQualifiedName);
+        generateApplicationModel();
+    }
+
+    private void generateRegistrarSource(String registrarSimpleName) {
+        Filer filer = processingEnv.getFiler();
+        try {
+            JavaFileObject file = filer.createSourceFile(GENERATED_PACKAGE + "." + registrarSimpleName);
+            try (Writer writer = file.openWriter()) {
+                writer.write("package " + GENERATED_PACKAGE + ";\n\n");
+                writer.write("public final class " + registrarSimpleName
+                        + " implements com.tanwir.resteasy.reactive.server.GeneratedRouteRegistrar {\n");
+                writer.write("    @Override\n");
+                writer.write("    public void register(com.tanwir.resteasy.reactive.server.RouteRegistrar registrar) {\n");
+                for (RouteDefinition route : routes.values()) {
+                    switch (route.httpMethod) {
+                        case "GET":
+                            writer.write("        registrar.registerGet(\"" + escape(route.path) + "\", ");
+                            break;
+                        case "POST":
+                            writer.write("        registrar.registerPost(\"" + escape(route.path) + "\", ");
+                            break;
+                        case "PUT":
+                            writer.write("        registrar.registerPut(\"" + escape(route.path) + "\", ");
+                            break;
+                        case "DELETE":
+                            writer.write("        registrar.registerDelete(\"" + escape(route.path) + "\", ");
+                            break;
+                        case "PATCH":
+                            writer.write("        registrar.registerPatch(\"" + escape(route.path) + "\", ");
+                            break;
+                        default:
+                            throw new IllegalStateException("Unsupported HTTP method: " + route.httpMethod);
+                    }
+                    writer.write("\"" + escape(route.operationId) + "\", ");
+                    writer.write(route.resourceClass + ".class, ");
+                    writer.write("(resource, request, pathParams, queryParams, body) -> {\n");
+                    writer.write("    // Simple parameter extraction for Phase 3\n");
+                    writer.write("    try {\n");
+                    writer.write("        return (Object) resource." + route.methodName + "();\n");
+                    writer.write("    } catch (Exception e) {\n");
+                    writer.write("        throw new RuntimeException(\"Method invocation failed\", e);\n");
+                    writer.write("    }\n");
+                    writer.write("});\n");
+                }
+                writer.write("    }\n");
+                writer.write("}\n");
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to generate GET route registrar", e);
+        }
+    }
+
+    private void generateServiceDescriptor(String registrarQualifiedName) {
+        Filer filer = processingEnv.getFiler();
+        try {
+            FileObject file = filer.createResource(StandardLocation.CLASS_OUTPUT, "", GENERATED_SERVICE);
+            try (Writer writer = file.openWriter()) {
+                writer.write(registrarQualifiedName);
+                writer.write("\n");
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to generate GET route service descriptor", e);
+        }
+    }
+
+    private void generateApplicationModel() {
+        Filer filer = processingEnv.getFiler();
+        Properties properties = new Properties();
+        properties.setProperty("application.name", resolveApplicationName());
+        properties.setProperty("route.count", Integer.toString(routes.size()));
+        int index = 0;
+        for (RouteDefinition route : routes.values()) {
+            properties.setProperty("route." + index + ".path", route.path);
+            properties.setProperty("route." + index + ".operation-id", route.operationId);
+            index++;
+        }
+
+        try {
+            FileObject file = filer.createResource(StandardLocation.CLASS_OUTPUT, "",
+                    MiniApplicationModelConstants.RESOURCE_PATH);
+            try (Writer writer = file.openWriter(); StringWriter buffer = new StringWriter()) {
+                properties.store(buffer, "Generated by MiniResteasyReactiveProcessor");
+                writer.write(buffer.toString());
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to generate application model", e);
+        }
+    }
+
+    private String resolveApplicationName() {
+        return processingEnv.getOptions().getOrDefault(
+                MiniApplicationModelConstants.OPTION_APPLICATION_NAME,
+                "mini-quarkus-application");
+    }
+
+    private void processRoute(Element element, String httpMethod) {
+        if (element.getKind() != ElementKind.METHOD) {
+            error(element, "@" + httpMethod + " can only be used on methods");
+            return;
+        }
+        ExecutableElement method = (ExecutableElement) element;
+        RouteDefinition route = RouteDefinition.create(method, httpMethod, processingEnv);
+        if (route != null) {
+            routes.put(route.operationId, route);
+        }
+    }
+
+    private void error(Element element, String message) {
+        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, message, element);
+    }
+
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    private static final class RouteDefinition {
+
+        private final String httpMethod;
+        private final String path;
+        private final String operationId;
+        private final String resourceClass;
+        private final String methodName;
+        private final boolean hasParameters;
+
+        private RouteDefinition(String httpMethod, String path, String operationId, String resourceClass, String methodName, boolean hasParameters) {
+            this.httpMethod = httpMethod;
+            this.path = path;
+            this.operationId = operationId;
+            this.resourceClass = resourceClass;
+            this.methodName = methodName;
+            this.hasParameters = hasParameters;
+        }
+
+        private static RouteDefinition create(ExecutableElement method, String httpMethod, ProcessingEnvironment processingEnv) {
+            if (!method.getModifiers().contains(Modifier.PUBLIC)) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "@" + httpMethod + " methods must be public", method);
+                return null;
+            }
+            
+            // Validate return type - can be String, Response, or any POJO (for JSON serialization)
+            TypeKind returnTypeKind = method.getReturnType().getKind();
+            if (returnTypeKind != TypeKind.DECLARED && returnTypeKind != TypeKind.VOID) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "@" + httpMethod + " methods must return a declared type or void", method);
+                return null;
+            }
+
+            TypeElement resourceClass = (TypeElement) method.getEnclosingElement();
+            if (!resourceClass.getModifiers().contains(Modifier.PUBLIC)) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "Resource classes must be public", resourceClass);
+                return null;
+            }
+            if (resourceClass.getAnnotation(Singleton.class) == null) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "Resource classes must also be annotated with @Singleton so ArC can manage them", resourceClass);
+                return null;
+            }
+
+            Path classPath = resourceClass.getAnnotation(Path.class);
+            if (classPath == null) {
+                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
+                        "Resource classes must be annotated with @Path", resourceClass);
+                return null;
+            }
+
+            Path methodPath = method.getAnnotation(Path.class);
+            String path = normalizePath(classPath.value(), methodPath == null ? "" : methodPath.value());
+            String resourceClassName = resourceClass.getQualifiedName().toString();
+            String operationId = resourceClassName + "#" + method.getSimpleName();
+            boolean hasParameters = !method.getParameters().isEmpty();
+            return new RouteDefinition(httpMethod, path, operationId, resourceClassName, method.getSimpleName().toString(), hasParameters);
+        }
+
+        private static String normalizePath(String classPath, String methodPath) {
+            String classSegment = normalizeSegment(classPath);
+            String methodSegment = normalizeSegment(methodPath);
+            if (classSegment.isEmpty() && methodSegment.isEmpty()) {
+                return "/";
+            }
+            if (classSegment.isEmpty()) {
+                return "/" + methodSegment;
+            }
+            if (methodSegment.isEmpty()) {
+                return "/" + classSegment;
+            }
+            return "/" + classSegment + "/" + methodSegment;
+        }
+
+        private static String normalizeSegment(String value) {
+            if (value == null) {
+                return "";
+            }
+            String normalized = value.trim();
+            while (normalized.startsWith("/")) {
+                normalized = normalized.substring(1);
+            }
+            while (normalized.endsWith("/")) {
+                normalized = normalized.substring(0, normalized.length() - 1);
+            }
+            return normalized;
+        }
+    }
+}
+
+
+=== ./independent-projects/bootstrap/runner/src/main/java/com/tanwir/bootstrap/runner/MiniQuarkusEntryPoint.java ===
+[FILE] 17:28:03 ./independent-projects/bootstrap/runner/src/main/java/com/tanwir/bootstrap/runner/MiniQuarkusEntryPoint.java
+package com.tanwir.bootstrap.runner;
+
+import com.tanwir.bootstrap.model.MiniApplicationModel;
+import com.tanwir.bootstrap.model.MiniApplicationModelLoader;
+import com.tanwir.resteasy.reactive.server.MiniResteasyReactiveServer;
+
+import java.util.concurrent.CountDownLatch;
+
+import org.jboss.logging.Logger;
+
+public final class MiniQuarkusEntryPoint {
+
+    private static final Logger LOG = Logger.getLogger(MiniQuarkusEntryPoint.class);
+    private static final String PORT_PROPERTY = "mini.quarkus.http.port";
+
+    private MiniQuarkusEntryPoint() {
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        MiniApplicationModel applicationModel = MiniApplicationModelLoader.load();
+        LOG.infof("Loaded application model for %s with %d GET route(s)",
+                applicationModel.applicationName(), applicationModel.getRoutes().size());
+
+        int port = Integer.getInteger(PORT_PROPERTY, 8080);
+        MiniResteasyReactiveServer server = MiniResteasyReactiveServer.start(applicationModel, port);
+        CountDownLatch shutdown = new CountDownLatch(1);
+        Runtime.getRuntime().addShutdownHook(new Thread(shutdown::countDown, "mini-quarkus-shutdown"));
+        System.out.println("mini-quarkus listening on http://localhost:" + server.port() + "/hello");
+        try {
+            shutdown.await();
+        } finally {
+            server.close();
+        }
+    }
+}
+
+
+=== ./independent-projects/bootstrap/app-model/src/main/java/com/tanwir/bootstrap/model/MiniApplicationModelLoader.java ===
+[FILE] 17:28:03 ./independent-projects/bootstrap/app-model/src/main/java/com/tanwir/bootstrap/model/MiniApplicationModelLoader.java
+package com.tanwir.bootstrap.model;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+
+public final class MiniApplicationModelLoader {
+
+    private MiniApplicationModelLoader() {
+    }
+
+    public static MiniApplicationModel load() {
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        if (classLoader == null) {
+            classLoader = MiniApplicationModelLoader.class.getClassLoader();
+        }
+        return load(classLoader);
+    }
+
+    public static MiniApplicationModel load(ClassLoader classLoader) {
+        try (InputStream stream = classLoader.getResourceAsStream(MiniApplicationModelConstants.RESOURCE_PATH)) {
+            if (stream == null) {
+                throw new IllegalStateException(
+                        "Application model not found: " + MiniApplicationModelConstants.RESOURCE_PATH);
+            }
+            Properties properties = new Properties();
+            properties.load(stream);
+            String applicationName = properties.getProperty("application.name", "mini-quarkus-application");
+            int routeCount = Integer.parseInt(properties.getProperty("route.count", "0"));
+            List<MiniApplicationModel.RouteModel> routes = new ArrayList<>(routeCount);
+            for (int i = 0; i < routeCount; i++) {
+                String path = require(properties, "route." + i + ".path");
+                String operationId = require(properties, "route." + i + ".operation-id");
+                routes.add(new MiniApplicationModel.RouteModel(path, operationId));
+            }
+            return new MiniApplicationModel(applicationName, routes);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to load application model", e);
+        }
+    }
+
+    private static String require(Properties properties, String key) {
+        String value = properties.getProperty(key);
+        if (value == null) {
+            throw new IllegalStateException("Missing application model property: " + key);
+        }
+        return value;
+    }
+}
+
+
+=== ./independent-projects/bootstrap/app-model/src/main/java/com/tanwir/bootstrap/model/MiniApplicationModel.java ===
+[FILE] 17:28:03 ./independent-projects/bootstrap/app-model/src/main/java/com/tanwir/bootstrap/model/MiniApplicationModel.java
+package com.tanwir.bootstrap.model;
+
+import java.util.List;
+
+public final class MiniApplicationModel {
+
+    private final String applicationName;
+    private final List<RouteModel> getRoutes;
+
+    public MiniApplicationModel(String applicationName, List<RouteModel> getRoutes) {
+        this.applicationName = applicationName;
+        this.getRoutes = List.copyOf(getRoutes);
+    }
+
+    public String applicationName() {
+        return applicationName;
+    }
+
+    public List<RouteModel> getRoutes() {
+        return getRoutes;
+    }
+
+    public record RouteModel(String path, String operationId) {
+    }
+}
+
+
+=== ./independent-projects/bootstrap/app-model/src/main/java/com/tanwir/bootstrap/model/MiniApplicationModelConstants.java ===
+[FILE] 17:28:03 ./independent-projects/bootstrap/app-model/src/main/java/com/tanwir/bootstrap/model/MiniApplicationModelConstants.java
+package com.tanwir.bootstrap.model;
+
+public final class MiniApplicationModelConstants {
+
+    public static final String RESOURCE_PATH = "META-INF/mini-quarkus/application-model.properties";
+    public static final String OPTION_APPLICATION_NAME = "mini.quarkus.application.name";
+
+    private MiniApplicationModelConstants() {
+    }
+}
+
+=== END OF CODE SNAPSHOT ===

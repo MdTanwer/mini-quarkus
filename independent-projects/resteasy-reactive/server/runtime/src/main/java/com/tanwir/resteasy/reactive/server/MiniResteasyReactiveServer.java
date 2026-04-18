@@ -4,12 +4,19 @@ import com.tanwir.arc.Arc;
 import com.tanwir.arc.ArcContainer;
 import com.tanwir.arc.context.RequestContextController;
 import com.tanwir.bootstrap.model.MiniApplicationModel;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 import java.util.ServiceLoader;
+import java.util.Map;
+import java.util.HashMap;
 
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
+import io.vertx.core.http.HttpServerRequest;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.handler.BodyHandler;
 import org.jboss.logging.Logger;
 
 public final class MiniResteasyReactiveServer implements AutoCloseable {
@@ -45,6 +52,7 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
     private static MiniResteasyReactiveServer start(int port, ArcContainer arcContainer, boolean ownsArcContainer) {
         Vertx vertx = Vertx.vertx();
         Router router = Router.router(vertx);
+        router.route().handler(BodyHandler.create());
         VertxRouteRegistrar registrar = new VertxRouteRegistrar(router, arcContainer);
 
         int discoveredRegistrars = 0;
@@ -89,44 +97,124 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
 
         private final Router router;
         private final ArcContainer arcContainer;
+        private final ObjectMapper objectMapper;
         private int routeCount;
 
         private VertxRouteRegistrar(Router router, ArcContainer arcContainer) {
             this.router = router;
             this.arcContainer = arcContainer;
+            this.objectMapper = new ObjectMapper();
+            this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
         }
 
         @Override
-        public <T> void registerGet(String path, String operationId, Class<T> resourceClass, GetInvoker<T> invoker) {
+        public <T> void registerGet(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker) {
+            registerRoute("GET", path, operationId, resourceClass, invoker, router::get);
+        }
+
+        @Override
+        public <T> void registerPost(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker) {
+            registerRoute("POST", path, operationId, resourceClass, invoker, router::post);
+        }
+
+        @Override
+        public <T> void registerPut(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker) {
+            registerRoute("PUT", path, operationId, resourceClass, invoker, router::put);
+        }
+
+        @Override
+        public <T> void registerDelete(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker) {
+            registerRoute("DELETE", path, operationId, resourceClass, invoker, router::delete);
+        }
+
+        @Override
+        public <T> void registerPatch(String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker) {
+            registerRoute("PATCH", path, operationId, resourceClass, invoker, router::patch);
+        }
+
+        private <T> void registerRoute(String httpMethod, String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker, java.util.function.Function<String, io.vertx.ext.web.Route> routeMethod) {
             routeCount++;
-            LOG.infof("Registered GET %s -> %s", path, operationId);
-            router.get(path).handler(routingContext -> {
+            LOG.infof("Registered %s %s -> %s", httpMethod, path, operationId);
+            
+            routeMethod.apply(path).handler(routingContext -> {
                 String requestPath = routingContext.request().path();
-                LOG.infof("GET %s received", requestPath);
+                LOG.infof("%s %s received", httpMethod, requestPath);
                 LOG.infof("matched route -> %s", operationId);
                 
                 RequestContextController rcc = arcContainer.requestContextController();
                 rcc.activate();
                 try {
+                    // Extract path parameters
+                    Map<String, String> pathParams = new HashMap<>();
+                    routingContext.pathParams().forEach(pathParams::put);
+                    
+                    // Extract query parameters
+                    Map<String, String> queryParams = new HashMap<>();
+                    routingContext.queryParams().forEach(param -> queryParams.put(param.getKey(), param.getValue()));
+                    
+                    // Extract request body
+                    JsonObject body = null;
+                    if (routingContext.getBodyAsString() != null && !routingContext.getBodyAsString().isEmpty()) {
+                        body = routingContext.getBodyAsJson();
+                    }
+                    
                     T resource = arcContainer.instance(resourceClass).get();
                     LOG.infof("resolved bean -> %s", resourceClass.getName());
-                    String body = String.valueOf(invoker.invoke(resource));
-                    LOG.infof("invoked method -> returned \"%s\"", body);
-                    routingContext.response()
-                            .setStatusCode(200)
-                            .putHeader("content-type", "text/plain")
-                            .end(body);
+                    
+                    Object result = invoker.invoke(resource, routingContext.request(), pathParams, queryParams, body);
+                    LOG.infof("invoked method -> returned %s", result != null ? result.getClass().getSimpleName() : "null");
+                    
+                    // Handle response
+                    if (result instanceof Response) {
+                        Response response = (Response) result;
+                        sendResponse(routingContext, response.getStatus(), response.getEntity(), response.getContentType());
+                    } else if (result instanceof String) {
+                        sendResponse(routingContext, 200, result, "text/plain");
+                    } else if (result != null) {
+                        sendResponse(routingContext, 200, result, "application/json");
+                    } else {
+                        sendResponse(routingContext, 204, null, null);
+                    }
+                    
                     LOG.info("response sent -> 200");
                 } catch (Throwable throwable) {
-                    LOG.errorf(throwable, "GET %s failed", requestPath);
+                    LOG.errorf(throwable, "%s %s failed", httpMethod, requestPath);
                     routingContext.response()
                             .setStatusCode(500)
-                            .putHeader("content-type", "text/plain")
-                            .end("Internal Server Error");
+                            .putHeader("content-type", "application/json")
+                            .end("{\"error\":\"Internal Server Error\",\"message\":\"" + throwable.getMessage() + "\"}");
                 } finally {
                     rcc.deactivate();  // triggers @PreDestroy on all @RequestScoped beans
                 }
             });
+        }
+
+        private void sendResponse(io.vertx.ext.web.RoutingContext routingContext, int statusCode, Object entity, String contentType) {
+            if (entity == null) {
+                routingContext.response().setStatusCode(statusCode).end();
+                return;
+            }
+            
+            String responseContent;
+            if (entity instanceof String) {
+                responseContent = (String) entity;
+            } else {
+                try {
+                    responseContent = objectMapper.writeValueAsString(entity);
+                } catch (Exception e) {
+                    LOG.errorf(e, "Failed to serialize response entity");
+                    routingContext.response()
+                            .setStatusCode(500)
+                            .putHeader("content-type", "application/json")
+                            .end("{\"error\":\"Serialization Error\"}");
+                    return;
+                }
+            }
+            
+            routingContext.response()
+                    .setStatusCode(statusCode)
+                    .putHeader("content-type", contentType != null ? contentType : "application/json")
+                    .end(responseContent);
         }
 
         private int routeCount() {

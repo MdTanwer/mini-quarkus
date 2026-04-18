@@ -32,8 +32,22 @@ import javax.tools.StandardLocation;
 
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
+import com.tanwir.resteasy.reactive.server.POST;
+import com.tanwir.resteasy.reactive.server.PUT;
+import com.tanwir.resteasy.reactive.server.DELETE;
+import com.tanwir.resteasy.reactive.server.PATCH;
+import com.tanwir.resteasy.reactive.server.PathParam;
+import com.tanwir.resteasy.reactive.server.QueryParam;
+import com.tanwir.resteasy.reactive.server.Produces;
+import com.tanwir.resteasy.reactive.server.Consumes;
 
-@SupportedAnnotationTypes("jakarta.ws.rs.GET")
+@SupportedAnnotationTypes({
+    "jakarta.ws.rs.GET",
+    "com.tanwir.resteasy.reactive.server.POST",
+    "com.tanwir.resteasy.reactive.server.PUT",
+    "com.tanwir.resteasy.reactive.server.DELETE",
+    "com.tanwir.resteasy.reactive.server.PATCH"
+})
 @SupportedOptions(MiniApplicationModelConstants.OPTION_APPLICATION_NAME)
 @SupportedSourceVersion(SourceVersion.RELEASE_17)
 public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
@@ -52,16 +66,25 @@ public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        // Process GET methods
         for (Element element : roundEnv.getElementsAnnotatedWith(GET.class)) {
-            if (element.getKind() != ElementKind.METHOD) {
-                error(element, "@GET can only be used on methods");
-                continue;
-            }
-            ExecutableElement method = (ExecutableElement) element;
-            RouteDefinition route = RouteDefinition.create(method, processingEnv);
-            if (route != null) {
-                routes.put(route.operationId, route);
-            }
+            processRoute(element, "GET");
+        }
+        // Process POST methods
+        for (Element element : roundEnv.getElementsAnnotatedWith(POST.class)) {
+            processRoute(element, "POST");
+        }
+        // Process PUT methods
+        for (Element element : roundEnv.getElementsAnnotatedWith(PUT.class)) {
+            processRoute(element, "PUT");
+        }
+        // Process DELETE methods
+        for (Element element : roundEnv.getElementsAnnotatedWith(DELETE.class)) {
+            processRoute(element, "DELETE");
+        }
+        // Process PATCH methods
+        for (Element element : roundEnv.getElementsAnnotatedWith(PATCH.class)) {
+            processRoute(element, "PATCH");
         }
 
         if (!roundEnv.processingOver() || generated || routes.isEmpty()) {
@@ -92,10 +115,35 @@ public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
                 writer.write("    @Override\n");
                 writer.write("    public void register(com.tanwir.resteasy.reactive.server.RouteRegistrar registrar) {\n");
                 for (RouteDefinition route : routes.values()) {
-                    writer.write("        registrar.registerGet(\"" + escape(route.path) + "\", ");
+                    switch (route.httpMethod) {
+                        case "GET":
+                            writer.write("        registrar.registerGet(\"" + escape(route.path) + "\", ");
+                            break;
+                        case "POST":
+                            writer.write("        registrar.registerPost(\"" + escape(route.path) + "\", ");
+                            break;
+                        case "PUT":
+                            writer.write("        registrar.registerPut(\"" + escape(route.path) + "\", ");
+                            break;
+                        case "DELETE":
+                            writer.write("        registrar.registerDelete(\"" + escape(route.path) + "\", ");
+                            break;
+                        case "PATCH":
+                            writer.write("        registrar.registerPatch(\"" + escape(route.path) + "\", ");
+                            break;
+                        default:
+                            throw new IllegalStateException("Unsupported HTTP method: " + route.httpMethod);
+                    }
                     writer.write("\"" + escape(route.operationId) + "\", ");
                     writer.write(route.resourceClass + ".class, ");
-                    writer.write("resource -> resource." + route.methodName + "());\n");
+                    writer.write("(resource, request, pathParams, queryParams, body) -> {\n");
+                    writer.write("    // Simple parameter extraction for Phase 3\n");
+                    writer.write("    try {\n");
+                    writer.write("        return (Object) resource." + route.methodName + "();\n");
+                    writer.write("    } catch (Exception e) {\n");
+                    writer.write("        throw new RuntimeException(\"Method invocation failed\", e);\n");
+                    writer.write("    }\n");
+                    writer.write("});\n");
                 }
                 writer.write("    }\n");
                 writer.write("}\n");
@@ -148,6 +196,18 @@ public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
                 "mini-quarkus-application");
     }
 
+    private void processRoute(Element element, String httpMethod) {
+        if (element.getKind() != ElementKind.METHOD) {
+            error(element, "@" + httpMethod + " can only be used on methods");
+            return;
+        }
+        ExecutableElement method = (ExecutableElement) element;
+        RouteDefinition route = RouteDefinition.create(method, httpMethod, processingEnv);
+        if (route != null) {
+            routes.put(route.operationId, route);
+        }
+    }
+
     private void error(Element element, String message) {
         processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, message, element);
     }
@@ -158,33 +218,34 @@ public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
 
     private static final class RouteDefinition {
 
+        private final String httpMethod;
         private final String path;
         private final String operationId;
         private final String resourceClass;
         private final String methodName;
+        private final boolean hasParameters;
 
-        private RouteDefinition(String path, String operationId, String resourceClass, String methodName) {
+        private RouteDefinition(String httpMethod, String path, String operationId, String resourceClass, String methodName, boolean hasParameters) {
+            this.httpMethod = httpMethod;
             this.path = path;
             this.operationId = operationId;
             this.resourceClass = resourceClass;
             this.methodName = methodName;
+            this.hasParameters = hasParameters;
         }
 
-        private static RouteDefinition create(ExecutableElement method, ProcessingEnvironment processingEnv) {
+        private static RouteDefinition create(ExecutableElement method, String httpMethod, ProcessingEnvironment processingEnv) {
             if (!method.getModifiers().contains(Modifier.PUBLIC)) {
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                        "@GET methods must be public in the first REST prototype", method);
+                        "@" + httpMethod + " methods must be public", method);
                 return null;
             }
-            if (!method.getParameters().isEmpty()) {
+            
+            // Validate return type - can be String, Response, or any POJO (for JSON serialization)
+            TypeKind returnTypeKind = method.getReturnType().getKind();
+            if (returnTypeKind != TypeKind.DECLARED && returnTypeKind != TypeKind.VOID) {
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                        "@GET methods must not declare parameters in the first REST prototype", method);
-                return null;
-            }
-            if (method.getReturnType().getKind() != TypeKind.DECLARED
-                    || !"java.lang.String".equals(processingEnv.getTypeUtils().erasure(method.getReturnType()).toString())) {
-                processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
-                        "@GET methods must return String in the first REST prototype", method);
+                        "@" + httpMethod + " methods must return a declared type or void", method);
                 return null;
             }
 
@@ -211,7 +272,8 @@ public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
             String path = normalizePath(classPath.value(), methodPath == null ? "" : methodPath.value());
             String resourceClassName = resourceClass.getQualifiedName().toString();
             String operationId = resourceClassName + "#" + method.getSimpleName();
-            return new RouteDefinition(path, operationId, resourceClassName, method.getSimpleName().toString());
+            boolean hasParameters = !method.getParameters().isEmpty();
+            return new RouteDefinition(httpMethod, path, operationId, resourceClassName, method.getSimpleName().toString(), hasParameters);
         }
 
         private static String normalizePath(String classPath, String methodPath) {

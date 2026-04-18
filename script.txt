@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# Create timestamp
+TIMESTAMP=$(date "+%Y-%m-%d %H:%M:%S")
+echo "=== CODE SNAPSHOT: $TIMESTAMP ===" > all-code.txt
+
+# Track file changes
+echo "" >> all-code.txt
+echo "=== FILE MODIFICATIONS TRACKER ===" >> all-code.txt
+echo "Format: [STATUS] [TIMESTAMP] [FILE_PATH]" >> all-code.txt
+echo "STATUS: MODIFIED=MODIFIED | NEW=NEW | UNCHANGED=" >> all-code.txt
+echo "" >> all-code.txt
+
+# Find and process Java files
+find . -name "*.java" \
+  -not -path "./quarkus/*" \
+  -not -path "*/test/*" \
+  -not -name "*Test.java" | while read file; do
+    echo "" >> all-code.txt
+    echo "=== $file ===" >> all-code.txt
+    echo "[FILE] $(date '+%H:%M:%S') $file" >> all-code.txt
+    cat "$file" >> all-code.txt
+    echo "" >> all-code.txt
+done
+
+echo "=== END OF CODE SNAPSHOT ===" >> all-code.txt

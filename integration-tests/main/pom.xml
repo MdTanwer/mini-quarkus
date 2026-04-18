@@ -21,6 +21,7 @@
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <vertx.version>4.5.26</vertx.version>
     </properties>
 
     <dependencies>
@@ -45,14 +46,13 @@
             <scope>provided</scope>
             <optional>true</optional>
         </dependency>
-        <!-- Temporarily removed to test config system -->
-        <!-- <dependency>
+        <dependency>
             <groupId>com.tanwir</groupId>
             <artifactId>mini-quarkus-resteasy-reactive-processor</artifactId>
             <version>${project.version}</version>
             <scope>provided</scope>
             <optional>true</optional>
-        </dependency> -->
+        </dependency>
         <dependency>
             <groupId>com.tanwir</groupId>
             <artifactId>mini-quarkus-config-processor</artifactId>
@@ -64,6 +64,18 @@
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>5.12.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-web-client</artifactId>
+            <version>${vertx.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.vertx</groupId>
+            <artifactId>vertx-junit5</artifactId>
+            <version>${vertx.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -87,12 +99,11 @@
                                     <artifactId>mini-quarkus-arc-processor</artifactId>
                                     <version>${project.version}</version>
                                 </path>
-                                <!-- Temporarily removed to test config system -->
-                                <!-- <path>
+                                <path>
                                     <groupId>com.tanwir</groupId>
                                     <artifactId>mini-quarkus-resteasy-reactive-processor</artifactId>
                                     <version>${project.version}</version>
-                                </path> -->
+                                </path>
                                 <path>
                                     <groupId>com.tanwir</groupId>
                                     <artifactId>mini-quarkus-config-processor</artifactId>

@@ -45,4 +45,17 @@
             <version>${jakarta.ws.rs-api.version}</version>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- Disable annotation processing for the processor itself to avoid
+                         bootstrap: the processor cannot use itself during its own compilation. -->
+                    <proc>none</proc>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>

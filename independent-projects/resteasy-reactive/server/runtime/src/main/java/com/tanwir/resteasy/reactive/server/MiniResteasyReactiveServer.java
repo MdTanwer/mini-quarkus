@@ -2,23 +2,43 @@ package com.tanwir.resteasy.reactive.server;
 
 import com.tanwir.arc.Arc;
 import com.tanwir.arc.ArcContainer;
+import com.tanwir.arc.BeanDescriptor;
+import com.tanwir.arc.Scope;
 import com.tanwir.arc.context.RequestContextController;
 import com.tanwir.bootstrap.model.MiniApplicationModel;
+import com.tanwir.mutiny.MiniEventBus;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
-import java.util.ServiceLoader;
-import java.util.Map;
-import java.util.HashMap;
-
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
-import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 import org.jboss.logging.Logger;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.ServiceLoader;
+
+/**
+ * Mini Quarkus HTTP server wired to Vert.x.
+ *
+ * <p>Mirrors the role of {@code io.quarkus.resteasy.reactive.server.runtime.ResteasyReactiveRecorder}
+ * in real Quarkus — it creates the Vert.x Router, discovers all generated route registrars via
+ * {@link ServiceLoader}, and handles both synchronous and reactive ({@link Uni}/{@link Multi})
+ * return types from resource methods.
+ *
+ * <h2>Reactive return types</h2>
+ * When a resource method returns {@link Uni}{@code <T>}, the routing layer subscribes to the
+ * {@code Uni} without blocking the Vert.x event loop. The request context remains active
+ * until the {@code Uni} resolves (success or failure) — exactly like real Quarkus RESTEasy Reactive.
+ *
+ * <p>When a method returns {@link Multi}{@code <T>}, all items are collected into a list and
+ * serialised as a JSON array — a simplified version of Quarkus's SSE/chunked-transfer support.
+ */
 public final class MiniResteasyReactiveServer implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(MiniResteasyReactiveServer.class);
@@ -40,7 +60,7 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
     public static MiniResteasyReactiveServer start(MiniApplicationModel applicationModel, int port) {
         LOG.infof("Bootstrapping %s", applicationModel.applicationName());
         for (MiniApplicationModel.RouteModel route : applicationModel.getRoutes()) {
-            LOG.infof("application model route -> GET %s (%s)", route.path(), route.operationId());
+            LOG.infof("application model route -> %s (%s)", route.path(), route.operationId());
         }
         return start(port, Arc.initialize(), true);
     }
@@ -51,6 +71,22 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
 
     private static MiniResteasyReactiveServer start(int port, ArcContainer arcContainer, boolean ownsArcContainer) {
         Vertx vertx = Vertx.vertx();
+
+        // Wire Mutiny to Vert.x event-loop and register @ConsumeEvent handlers.
+        // In Phase 6 MutinyDeploymentProcessor registers MiniEventBus as a synthetic bean
+        // BEFORE the server starts, so we only register it here if it isn't already present
+        // (preserves backward-compat with the Phase 5 standalone start() overload).
+        MiniEventBus eventBus;
+        if (arcContainer.isRegistered(MiniEventBus.class)) {
+            // Phase 6: MutinyDeploymentProcessor already registered it as a synthetic bean
+            eventBus = arcContainer.instance(MiniEventBus.class).get();
+        } else {
+            // Phase 5 standalone path: register it here
+            eventBus = MiniEventBus.initialize(vertx, arcContainer);
+            arcContainer.registerBean(new BeanDescriptor<>(
+                    MiniEventBus.class, Scope.SINGLETON, c -> eventBus, null, null, java.util.Set.of()));
+        }
+
         Router router = Router.router(vertx);
         router.route().handler(BodyHandler.create());
         VertxRouteRegistrar registrar = new VertxRouteRegistrar(router, arcContainer);
@@ -67,7 +103,7 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
                 Arc.shutdown();
             }
             throw new IllegalStateException(
-                    "No generated GET routes found. Add mini-quarkus-resteasy-reactive-processor during compilation.");
+                    "No generated routes found. Add mini-quarkus-resteasy-reactive-processor during compilation.");
         }
 
         HttpServer server = vertx.createHttpServer()
@@ -77,7 +113,7 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
                 .toCompletableFuture()
                 .join();
 
-        LOG.infof("HTTP server listening on port %d with %d GET route(s)", server.actualPort(), registrar.routeCount());
+        LOG.infof("HTTP server listening on port %d with %d route(s)", server.actualPort(), registrar.routeCount());
         return new MiniResteasyReactiveServer(vertx, server, ownsArcContainer);
     }
 
@@ -93,6 +129,10 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Inner registrar — maps RouteRegistrar calls to Vert.x Router
+    // -------------------------------------------------------------------------
+
     private static final class VertxRouteRegistrar implements RouteRegistrar {
 
         private final Router router;
@@ -103,8 +143,7 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
         private VertxRouteRegistrar(Router router, ArcContainer arcContainer) {
             this.router = router;
             this.arcContainer = arcContainer;
-            this.objectMapper = new ObjectMapper();
-            this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+            this.objectMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         }
 
         @Override
@@ -132,89 +171,153 @@ public final class MiniResteasyReactiveServer implements AutoCloseable {
             registerRoute("PATCH", path, operationId, resourceClass, invoker, router::patch);
         }
 
-        private <T> void registerRoute(String httpMethod, String path, String operationId, Class<T> resourceClass, MethodInvoker<T> invoker, java.util.function.Function<String, io.vertx.ext.web.Route> routeMethod) {
+        private <T> void registerRoute(
+                String httpMethod,
+                String path,
+                String operationId,
+                Class<T> resourceClass,
+                MethodInvoker<T> invoker,
+                java.util.function.Function<String, io.vertx.ext.web.Route> routeMethod) {
+
             routeCount++;
             LOG.infof("Registered %s %s -> %s", httpMethod, path, operationId);
-            
-            routeMethod.apply(path).handler(routingContext -> {
+
+            // Vert.x uses colon-style (:id) but JAX-RS uses brace-style ({id}).
+            // Convert before passing to the router — mirrors Quarkus's VertxHttpRecorder
+            // which does the same path-parameter syntax translation.
+            String vertxPath = path.replaceAll("\\{([^}]+)}", ":$1");
+
+            routeMethod.apply(vertxPath).handler(routingContext -> {
                 String requestPath = routingContext.request().path();
                 LOG.infof("%s %s received", httpMethod, requestPath);
-                LOG.infof("matched route -> %s", operationId);
-                
+
+                Map<String, String> pathParams = new HashMap<>();
+                routingContext.pathParams().forEach(pathParams::put);
+
+                Map<String, String> queryParams = new HashMap<>();
+                routingContext.queryParams().forEach(e -> queryParams.put(e.getKey(), e.getValue()));
+
+                JsonObject body = null;
+                String bodyStr = routingContext.getBodyAsString();
+                if (bodyStr != null && !bodyStr.isEmpty()) {
+                    body = routingContext.getBodyAsJson();
+                }
+
                 RequestContextController rcc = arcContainer.requestContextController();
                 rcc.activate();
+
+                // asyncMode prevents the finally block from deactivating the request context
+                // prematurely when the handler returns a Uni/Multi — mirroring how real Quarkus
+                // RESTEasy Reactive keeps the context alive until the async pipeline settles.
+                boolean[] asyncMode = { false };
                 try {
-                    // Extract path parameters
-                    Map<String, String> pathParams = new HashMap<>();
-                    routingContext.pathParams().forEach(pathParams::put);
-                    
-                    // Extract query parameters
-                    Map<String, String> queryParams = new HashMap<>();
-                    routingContext.queryParams().forEach(param -> queryParams.put(param.getKey(), param.getValue()));
-                    
-                    // Extract request body
-                    JsonObject body = null;
-                    if (routingContext.getBodyAsString() != null && !routingContext.getBodyAsString().isEmpty()) {
-                        body = routingContext.getBodyAsJson();
-                    }
-                    
                     T resource = arcContainer.instance(resourceClass).get();
-                    LOG.infof("resolved bean -> %s", resourceClass.getName());
-                    
                     Object result = invoker.invoke(resource, routingContext.request(), pathParams, queryParams, body);
-                    LOG.infof("invoked method -> returned %s", result != null ? result.getClass().getSimpleName() : "null");
-                    
-                    // Handle response
-                    if (result instanceof Response) {
-                        Response response = (Response) result;
-                        sendResponse(routingContext, response.getStatus(), response.getEntity(), response.getContentType());
-                    } else if (result instanceof String) {
-                        sendResponse(routingContext, 200, result, "text/plain");
-                    } else if (result != null) {
-                        sendResponse(routingContext, 200, result, "application/json");
+                    LOG.infof("invoked %s -> %s", operationId,
+                            result != null ? result.getClass().getSimpleName() : "null");
+
+                    if (result instanceof Uni<?> uni) {
+                        // ---- Async / reactive path ----
+                        asyncMode[0] = true;
+                        // The request context will be deactivated inside the subscribe callbacks.
+                        final RequestContextController capturedRcc = rcc;
+                        uni.subscribe().with(
+                                item -> {
+                                    try {
+                                        sendResult(routingContext, item);
+                                    } finally {
+                                        capturedRcc.deactivate();
+                                    }
+                                },
+                                failure -> {
+                                    try {
+                                        sendError(routingContext, httpMethod, requestPath, failure);
+                                    } finally {
+                                        capturedRcc.deactivate();
+                                    }
+                                });
+
+                    } else if (result instanceof Multi<?> multi) {
+                        // ---- Collect Multi items then respond (simplified; real Quarkus streams) ----
+                        asyncMode[0] = true;
+                        final RequestContextController capturedRcc = rcc;
+                        multi.collect().asList().subscribe().with(
+                                items -> {
+                                    try {
+                                        sendResult(routingContext, items);
+                                    } finally {
+                                        capturedRcc.deactivate();
+                                    }
+                                },
+                                failure -> {
+                                    try {
+                                        sendError(routingContext, httpMethod, requestPath, failure);
+                                    } finally {
+                                        capturedRcc.deactivate();
+                                    }
+                                });
+
                     } else {
-                        sendResponse(routingContext, 204, null, null);
+                        // ---- Synchronous path ----
+                        sendResult(routingContext, result);
                     }
-                    
-                    LOG.info("response sent -> 200");
-                } catch (Throwable throwable) {
-                    LOG.errorf(throwable, "%s %s failed", httpMethod, requestPath);
-                    routingContext.response()
-                            .setStatusCode(500)
-                            .putHeader("content-type", "application/json")
-                            .end("{\"error\":\"Internal Server Error\",\"message\":\"" + throwable.getMessage() + "\"}");
+
+                } catch (Throwable t) {
+                    sendError(routingContext, httpMethod, requestPath, t);
                 } finally {
-                    rcc.deactivate();  // triggers @PreDestroy on all @RequestScoped beans
+                    if (!asyncMode[0]) {
+                        rcc.deactivate();
+                    }
                 }
             });
         }
 
-        private void sendResponse(io.vertx.ext.web.RoutingContext routingContext, int statusCode, Object entity, String contentType) {
+        private void sendResult(io.vertx.ext.web.RoutingContext rc, Object result) {
+            if (result instanceof Response response) {
+                sendResponse(rc, response.getStatus(), response.getEntity(), response.getContentType());
+            } else if (result instanceof String s) {
+                sendResponse(rc, 200, s, "text/plain");
+            } else if (result != null) {
+                sendResponse(rc, 200, result, "application/json");
+            } else {
+                sendResponse(rc, 204, null, null);
+            }
+            LOG.infof("response sent -> %d", result instanceof Response r ? r.getStatus() : (result == null ? 204 : 200));
+        }
+
+        private void sendError(io.vertx.ext.web.RoutingContext rc, String method, String path, Throwable t) {
+            LOG.errorf(t, "%s %s failed", method, path);
+            String msg = t.getMessage() != null ? t.getMessage().replace("\"", "'") : "Unknown error";
+            rc.response()
+                    .setStatusCode(500)
+                    .putHeader("content-type", "application/json")
+                    .end("{\"error\":\"Internal Server Error\",\"message\":\"" + msg + "\"}");
+        }
+
+        private void sendResponse(io.vertx.ext.web.RoutingContext rc, int status, Object entity, String contentType) {
             if (entity == null) {
-                routingContext.response().setStatusCode(statusCode).end();
+                rc.response().setStatusCode(status).end();
                 return;
             }
-            
-            String responseContent;
-            if (entity instanceof String) {
-                responseContent = (String) entity;
+            String body;
+            if (entity instanceof String s) {
+                body = s;
             } else {
                 try {
-                    responseContent = objectMapper.writeValueAsString(entity);
+                    body = objectMapper.writeValueAsString(entity);
                 } catch (Exception e) {
-                    LOG.errorf(e, "Failed to serialize response entity");
-                    routingContext.response()
+                    LOG.errorf(e, "Failed to serialise response entity");
+                    rc.response()
                             .setStatusCode(500)
                             .putHeader("content-type", "application/json")
                             .end("{\"error\":\"Serialization Error\"}");
                     return;
                 }
             }
-            
-            routingContext.response()
-                    .setStatusCode(statusCode)
+            rc.response()
+                    .setStatusCode(status)
                     .putHeader("content-type", contentType != null ? contentType : "application/json")
-                    .end(responseContent);
+                    .end(body);
         }
 
         private int routeCount() {

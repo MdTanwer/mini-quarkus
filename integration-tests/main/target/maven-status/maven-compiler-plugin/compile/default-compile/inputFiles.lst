@@ -1,5 +1,10 @@
 /home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/GreetingService.java
 /home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/GreetingServiceConfigLoader.java
 /home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/MainResource.java
+/home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/Product.java
+/home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/ProductRepository.java
+/home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/ProductResource.java
+/home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/ReactiveGreetingResource.java
 /home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/SimpleUserResource.java
 /home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/User.java
+/home/ubuntu/mini-quarkus/integration-tests/main/src/main/java/com/tanwir/it/model/GreetJpa.java

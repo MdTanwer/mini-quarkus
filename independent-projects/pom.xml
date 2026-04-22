@@ -19,9 +19,15 @@
     <description>Parent reactor for all independent projects</description>
 
     <modules>
+        <module>core</module>
         <module>arc</module>
         <module>config</module>
         <module>bootstrap</module>
+        <module>mutiny</module>
+        <module>datasource</module>
+        <module>flyway</module>
+        <module>hibernate-orm</module>
+        <module>panache</module>
         <module>resteasy-reactive</module>
         <module>maven-plugin</module>
     </modules>

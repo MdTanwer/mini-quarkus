@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.tanwir</groupId>
+        <artifactId>mini-quarkus-arc-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>mini-quarkus-arc-deployment</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Mini Quarkus ArC - Deployment</name>
+    <description>
+        ARC CDI deployment module. Contains @BuildStep processors and @Recorder classes that
+        run during the deployment phase to configure the ARC runtime. Mirrors
+        io.quarkus:quarkus-arc-deployment from the real Quarkus framework.
+    </description>
+
+    <properties>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- Core framework: BuildItem, @BuildStep, @Recorder, MiniExtensionManager -->
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- ARC runtime: the container we configure at deployment time -->
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-arc-runtime</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging</artifactId>
+            <version>3.6.3.Final</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <!-- Deployment modules are NOT annotation-processed by themselves -->
+                    <proc>none</proc>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -6,6 +6,9 @@ import com.tanwir.bootstrap.model.MiniApplicationModelConstants;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -24,6 +27,7 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import javax.tools.Diagnostic;
 import javax.tools.FileObject;
@@ -137,12 +141,52 @@ public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
                     writer.write("\"" + escape(route.operationId) + "\", ");
                     writer.write(route.resourceClass + ".class, ");
                     writer.write("(resource, request, pathParams, queryParams, body) -> {\n");
-                    writer.write("    // Simple parameter extraction for Phase 3\n");
-                    writer.write("    try {\n");
-                    writer.write("        return (Object) resource." + route.methodName + "();\n");
-                    writer.write("    } catch (Exception e) {\n");
-                    writer.write("        throw new RuntimeException(\"Method invocation failed\", e);\n");
-                    writer.write("    }\n");
+                    // Declare local variables for each bound parameter
+                    for (int i = 0; i < route.params.size(); i++) {
+                        RouteDefinition.ParamBinding p = route.params.get(i);
+                        String varName = "param" + i;
+                        switch (p.kind()) {
+                            case PATH -> writer.write(
+                                    "        " + p.javaType() + " " + varName
+                                    + " = " + castFromString("pathParams.get(\"" + p.annotationName() + "\")", p.javaType()) + ";\n");
+                            case QUERY -> writer.write(
+                                    "        " + p.javaType() + " " + varName
+                                    + " = " + castFromString("queryParams.get(\"" + p.annotationName() + "\")", p.javaType()) + ";\n");
+                            case BODY -> {
+                                if ("io.vertx.core.json.JsonObject".equals(p.javaType())) {
+                                    writer.write("        " + p.javaType() + " " + varName + " = body;\n");
+                                } else {
+                                    writer.write("        " + p.javaType() + " " + varName
+                                            + " = body != null ? body.mapTo(" + p.javaType() + ".class) : null;\n");
+                                }
+                            }
+                        }
+                    }
+                    // Build argument list
+                    StringBuilder args = new StringBuilder();
+                    for (int i = 0; i < route.params.size(); i++) {
+                        if (i > 0) args.append(", ");
+                        args.append("param").append(i);
+                    }
+                    if (route.transactional) {
+                        // Wrap the invocation in a JDBC transaction.
+                        // Mirrors Quarkus's TransactionInterceptor woven at build time via CDI.
+                        writer.write("    com.tanwir.panache.TransactionManager.begin();\n");
+                        writer.write("    try {\n");
+                        writer.write("        Object _result = (Object) resource." + route.methodName + "(" + args + ");\n");
+                        writer.write("        com.tanwir.panache.TransactionManager.commit();\n");
+                        writer.write("        return _result;\n");
+                        writer.write("    } catch (Exception e) {\n");
+                        writer.write("        com.tanwir.panache.TransactionManager.rollback();\n");
+                        writer.write("        throw new RuntimeException(\"Transactional method failed\", e);\n");
+                        writer.write("    }\n");
+                    } else {
+                        writer.write("    try {\n");
+                        writer.write("        return (Object) resource." + route.methodName + "(" + args + ");\n");
+                        writer.write("    } catch (Exception e) {\n");
+                        writer.write("        throw new RuntimeException(\"Method invocation failed\", e);\n");
+                        writer.write("    }\n");
+                    }
                     writer.write("});\n");
                 }
                 writer.write("    }\n");
@@ -212,26 +256,59 @@ public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
         processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, message, element);
     }
 
+    /**
+     * Generates a Java expression that converts a String value to the target type.
+     * Supports String, int/Integer, long/Long, boolean/Boolean — same conversions
+     * that Quarkus's ParameterExtractor handles via codec chains.
+     */
+    private static String castFromString(String expr, String javaType) {
+        return switch (javaType) {
+            case "java.lang.String", "String" -> expr;
+            case "int", "java.lang.Integer" -> "Integer.parseInt(" + expr + ")";
+            case "long", "java.lang.Long" -> "Long.parseLong(" + expr + ")";
+            case "boolean", "java.lang.Boolean" -> "Boolean.parseBoolean(" + expr + ")";
+            case "double", "java.lang.Double" -> "Double.parseDouble(" + expr + ")";
+            case "float", "java.lang.Float" -> "Float.parseFloat(" + expr + ")";
+            case "java.math.BigDecimal" -> "new java.math.BigDecimal(" + expr + ")";
+            default -> "((" + javaType + ") " + expr + ")";
+        };
+    }
+
     private static String escape(String value) {
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private static final class RouteDefinition {
 
+        private static final String TRANSACTIONAL_FQN = "com.tanwir.panache.Transactional";
+
+        enum ParamKind { PATH, QUERY, BODY }
+
+        record ParamBinding(ParamKind kind, String annotationName, String javaType) {}
+
         private final String httpMethod;
         private final String path;
         private final String operationId;
         private final String resourceClass;
         private final String methodName;
-        private final boolean hasParameters;
+        private final List<ParamBinding> params;
+        /**
+         * True when the method or its declaring class carries {@code @Transactional}.
+         * When true the generated route handler wraps the call in a JDBC transaction —
+         * same pattern as Quarkus's {@code TransactionInterceptor} in Narayana JTA.
+         */
+        private final boolean transactional;
 
-        private RouteDefinition(String httpMethod, String path, String operationId, String resourceClass, String methodName, boolean hasParameters) {
+        private RouteDefinition(String httpMethod, String path, String operationId,
+                String resourceClass, String methodName, List<ParamBinding> params,
+                boolean transactional) {
             this.httpMethod = httpMethod;
             this.path = path;
             this.operationId = operationId;
             this.resourceClass = resourceClass;
             this.methodName = methodName;
-            this.hasParameters = hasParameters;
+            this.params = params;
+            this.transactional = transactional;
         }
 
         private static RouteDefinition create(ExecutableElement method, String httpMethod, ProcessingEnvironment processingEnv) {
@@ -240,8 +317,7 @@ public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
                         "@" + httpMethod + " methods must be public", method);
                 return null;
             }
-            
-            // Validate return type - can be String, Response, or any POJO (for JSON serialization)
+
             TypeKind returnTypeKind = method.getReturnType().getKind();
             if (returnTypeKind != TypeKind.DECLARED && returnTypeKind != TypeKind.VOID) {
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR,
@@ -272,36 +348,82 @@ public final class MiniResteasyReactiveProcessor extends AbstractProcessor {
             String path = normalizePath(classPath.value(), methodPath == null ? "" : methodPath.value());
             String resourceClassName = resourceClass.getQualifiedName().toString();
             String operationId = resourceClassName + "#" + method.getSimpleName();
-            boolean hasParameters = !method.getParameters().isEmpty();
-            return new RouteDefinition(httpMethod, path, operationId, resourceClassName, method.getSimpleName().toString(), hasParameters);
+
+            // Build per-parameter binding descriptors.
+            // Each parameter is classified as PATH, QUERY, or BODY based on its annotations.
+            // Mirrors what Quarkus's ResteasyReactiveProcessor does when building ParameterExtractor chains.
+            List<ParamBinding> params = new ArrayList<>();
+            for (VariableElement param : method.getParameters()) {
+                String paramType = processingEnv.getTypeUtils().erasure(param.asType()).toString();
+                String pathName = annotationValue(param, "com.tanwir.resteasy.reactive.server.PathParam",
+                        "jakarta.ws.rs.PathParam");
+                String queryName = annotationValue(param, "com.tanwir.resteasy.reactive.server.QueryParam",
+                        "jakarta.ws.rs.QueryParam");
+
+                if (pathName != null) {
+                    params.add(new ParamBinding(ParamKind.PATH, pathName, paramType));
+                } else if (queryName != null) {
+                    params.add(new ParamBinding(ParamKind.QUERY, queryName, paramType));
+                } else {
+                    // Unannotated parameter → body. The type decides how to deserialize.
+                    params.add(new ParamBinding(ParamKind.BODY, null, paramType));
+                }
+            }
+
+            // Detect @Transactional by FQN on the method or the enclosing class.
+            // Mirrors Quarkus's interceptor binding resolution in CDI, where @Transactional
+            // on a class applies to all its methods.
+            boolean isTransactional = hasAnnotationByFqn(method, TRANSACTIONAL_FQN)
+                    || hasAnnotationByFqn(resourceClass, TRANSACTIONAL_FQN);
+
+            return new RouteDefinition(httpMethod, path, operationId, resourceClassName,
+                    method.getSimpleName().toString(), params, isTransactional);
+        }
+
+        /** Returns true if {@code element} is annotated with the given FQN annotation. */
+        private static boolean hasAnnotationByFqn(javax.lang.model.element.Element element, String fqn) {
+            for (javax.lang.model.element.AnnotationMirror am : element.getAnnotationMirrors()) {
+                if (am.getAnnotationType().toString().equals(fqn)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Returns the first non-empty {@code value} attribute from the matching annotation, or null. */
+        private static String annotationValue(VariableElement param, String... fqns) {
+            Set<String> fqnSet = new java.util.HashSet<>(java.util.Arrays.asList(fqns));
+            for (javax.lang.model.element.AnnotationMirror am : param.getAnnotationMirrors()) {
+                if (!fqnSet.contains(am.getAnnotationType().toString())) {
+                    continue;
+                }
+                for (Map.Entry<? extends javax.lang.model.element.ExecutableElement,
+                        ? extends javax.lang.model.element.AnnotationValue> entry :
+                        am.getElementValues().entrySet()) {
+                    if ("value".equals(entry.getKey().getSimpleName().toString())) {
+                        return entry.getValue().getValue().toString();
+                    }
+                }
+                // annotation present but value() not set — use the parameter name
+                return param.getSimpleName().toString();
+            }
+            return null;
         }
 
         private static String normalizePath(String classPath, String methodPath) {
             String classSegment = normalizeSegment(classPath);
             String methodSegment = normalizeSegment(methodPath);
-            if (classSegment.isEmpty() && methodSegment.isEmpty()) {
-                return "/";
-            }
-            if (classSegment.isEmpty()) {
-                return "/" + methodSegment;
-            }
-            if (methodSegment.isEmpty()) {
-                return "/" + classSegment;
-            }
+            if (classSegment.isEmpty() && methodSegment.isEmpty()) return "/";
+            if (classSegment.isEmpty()) return "/" + methodSegment;
+            if (methodSegment.isEmpty()) return "/" + classSegment;
             return "/" + classSegment + "/" + methodSegment;
         }
 
         private static String normalizeSegment(String value) {
-            if (value == null) {
-                return "";
-            }
+            if (value == null) return "";
             String normalized = value.trim();
-            while (normalized.startsWith("/")) {
-                normalized = normalized.substring(1);
-            }
-            while (normalized.endsWith("/")) {
-                normalized = normalized.substring(0, normalized.length() - 1);
-            }
+            while (normalized.startsWith("/")) normalized = normalized.substring(1);
+            while (normalized.endsWith("/")) normalized = normalized.substring(0, normalized.length() - 1);
             return normalized;
         }
     }

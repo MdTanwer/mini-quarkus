@@ -1,0 +1,13 @@
+# Built-in interceptor mappings for the ArcBeanProcessor.
+# Format: binding-annotation-FQN=interceptor-class-FQN
+# One entry per line. Lines starting with # are comments.
+#
+# The ArcBeanProcessor reads this file at compile time to discover built-in interceptors
+# from arc/runtime. User-defined interceptors (annotated with @Interceptor in the
+# application compilation unit) are discovered dynamically from roundEnv.
+#
+# Mirrors how Quarkus uses CDI portable extensions and Jandex to discover interceptors:
+# here we use a simple properties-like resource file as the "index".
+
+com.tanwir.arc.interceptor.Logged=com.tanwir.arc.interceptor.LoggingInterceptor
+com.tanwir.arc.interceptor.Timed=com.tanwir.arc.interceptor.TimingInterceptor

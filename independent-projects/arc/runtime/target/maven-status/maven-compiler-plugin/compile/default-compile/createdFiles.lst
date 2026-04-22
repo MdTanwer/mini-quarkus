@@ -1,5 +1,7 @@
+com/tanwir/arc/interceptor/Timed.class
 com/tanwir/arc/context/RequestContext$ContextInstance.class
 com/tanwir/arc/Inject.class
+com/tanwir/arc/interceptor/TimingInterceptor.class
 com/tanwir/arc/SimpleArcContainer.class
 com/tanwir/arc/Qualifier.class
 com/tanwir/arc/context/DependentContext.class
@@ -12,7 +14,10 @@ com/tanwir/arc/context/RequestContextController.class
 com/tanwir/arc/BeanFactory.class
 com/tanwir/arc/context/ApplicationContext.class
 com/tanwir/arc/context/SingletonContext.class
+com/tanwir/arc/interceptor/Interceptor.class
+com/tanwir/arc/interceptor/Logged.class
 com/tanwir/arc/RequestScoped.class
+com/tanwir/arc/interceptor/SimpleInvocationContext.class
 com/tanwir/arc/context/RequestContext.class
 com/tanwir/arc/PostConstruct.class
 com/tanwir/arc/PreDestroy.class
@@ -23,6 +28,10 @@ com/tanwir/arc/GeneratedBeanRegistrar.class
 com/tanwir/arc/BeanDescriptor.class
 com/tanwir/arc/Scope.class
 com/tanwir/arc/Arc.class
+com/tanwir/arc/interceptor/InterceptorBinding.class
 com/tanwir/arc/ApplicationScoped.class
 com/tanwir/arc/context/ApplicationContext$ContextInstance.class
 com/tanwir/arc/BeanRegistrar.class
+com/tanwir/arc/interceptor/LoggingInterceptor.class
+com/tanwir/arc/interceptor/AroundInvoke.class
+com/tanwir/arc/interceptor/InvocationContext.class

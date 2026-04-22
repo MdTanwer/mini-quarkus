@@ -21,5 +21,6 @@
     <modules>
         <module>runtime</module>
         <module>processor</module>
+        <module>deployment</module>
     </modules>
 </project>

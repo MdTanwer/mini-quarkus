@@ -94,6 +94,16 @@ final class SimpleArcContainer implements ArcContainer, BeanRegistrar {
     }
 
     @Override
+    public <T> void registerBean(BeanDescriptor<T> descriptor) {
+        register(descriptor);
+    }
+
+    @Override
+    public boolean isRegistered(Class<?> type) {
+        return byType.containsKey(type);
+    }
+
+    @Override
     public <T> InstanceHandle<T> instance(Class<T> type) {
         return instance(type, null);
     }

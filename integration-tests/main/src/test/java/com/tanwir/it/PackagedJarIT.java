@@ -33,23 +33,25 @@ class PackagedJarIT {
                 .start();
 
         String startupLine = null;
-        String modelLine = null;
+        String deploymentLine = null;
         int port = -1;
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             long deadline = System.nanoTime() + Duration.ofSeconds(20).toNanos();
             String line;
             while (System.nanoTime() < deadline && (line = readLine(reader, deadline)) != null) {
-                if (line.contains("Loaded application model for mini-quarkus-main")) {
-                    modelLine = line;
+                // Phase 6: deployment phase complete signal
+                if (line.contains("Deployment phase complete") || line.contains("Application:")) {
+                    deploymentLine = line;
                 }
-                if (line.contains("mini-quarkus listening on http://localhost:")) {
+                // Phase 6: new startup format — "Listening on: http://localhost:<port>"
+                if (line.contains("Listening on: http://localhost:")) {
                     startupLine = line;
                     port = extractPort(line);
                     break;
                 }
             }
 
-            assertTrue(modelLine != null, "Bootstrap runner did not report loading the generated application model");
+            assertTrue(deploymentLine != null, "Bootstrap runner did not complete the deployment phase");
             assertTrue(startupLine != null, "Packaged jar did not report startup");
 
             HttpResponse<String> response = HttpClient.newHttpClient()
@@ -60,7 +62,7 @@ class PackagedJarIT {
                             HttpResponse.BodyHandlers.ofString());
 
             assertEquals(200, response.statusCode());
-            assertEquals("mini-quarkus GET works", response.body());
+            assertEquals("Hello from dev profile! (count: 5)", response.body());
         } finally {
             process.destroy();
             if (!process.waitFor(10, TimeUnit.SECONDS)) {
@@ -82,8 +84,13 @@ class PackagedJarIT {
 
     private static int extractPort(String line) {
         int start = line.indexOf("http://localhost:");
-        int end = line.lastIndexOf("/hello");
-        String port = line.substring(start + "http://localhost:".length(), end);
-        return Integer.parseInt(port);
+        String afterHost = line.substring(start + "http://localhost:".length());
+        // Strip any trailing path or whitespace
+        int end = afterHost.length();
+        for (int i = 0; i < afterHost.length(); i++) {
+            char c = afterHost.charAt(i);
+            if (!Character.isDigit(c)) { end = i; break; }
+        }
+        return Integer.parseInt(afterHost.substring(0, end));
     }
 }

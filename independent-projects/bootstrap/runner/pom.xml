@@ -29,6 +29,49 @@
             <artifactId>mini-quarkus-bootstrap-app-model</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- Core extension framework: MiniExtensionManager, BuildItem, @BuildStep, @Recorder -->
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- Deployment modules — extension processors + recorders discovered via ServiceLoader -->
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-arc-deployment</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-mutiny-deployment</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-resteasy-reactive-deployment</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-datasource-deployment</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-flyway-deployment</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-hibernate-orm-deployment</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tanwir</groupId>
+            <artifactId>mini-quarkus-panache-deployment</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- RESTEasy Reactive runtime (HTTP server, route registrar) -->
         <dependency>
             <groupId>com.tanwir</groupId>
             <artifactId>mini-quarkus-resteasy-reactive-runtime</artifactId>
